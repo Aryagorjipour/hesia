@@ -30,6 +30,7 @@ export const TaskSchema = z.object({
   tags: z.array(z.string()),
   category: z.string().optional(),
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime().optional(),
   completedAt: z.string().datetime().optional(),
   durationMinutes: z.number().int().positive().optional(),
   notes: z.string().optional(),

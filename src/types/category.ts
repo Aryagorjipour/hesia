@@ -6,6 +6,7 @@ export const CategorySchema = z.object({
   description: z.string().optional(),
   iconName: z.string().optional(),
   usageCount: z.number().int().nonnegative().default(0),
+  updatedAt: z.string().datetime().optional(),
 });
 
 export type Category = z.infer<typeof CategorySchema>;

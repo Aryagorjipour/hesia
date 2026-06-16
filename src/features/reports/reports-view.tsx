@@ -60,7 +60,7 @@ export function ReportsView() {
           />
         </div>
       ) : stats ? (
-        <div className="space-y-6 overflow-y-auto px-3 py-4 sm:px-4 sm:py-6 lg:px-6 lg:py-8">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-4 pb-bottom-nav sm:px-4 sm:py-6 lg:px-6 lg:py-8 lg:pb-8">
           <WeekSelector
             selectedWeekStart={selectedWeekStart}
             onSelect={setLastSelectedWeek}

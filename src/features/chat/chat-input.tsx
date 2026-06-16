@@ -47,9 +47,9 @@ export function ChatInput({
 
   return (
     <div
-      className="border-t border-border bg-background/80 px-3 py-3 backdrop-blur-sm sm:px-4 lg:px-6"
+      className="border-t border-border bg-background/80 px-3 py-3 pb-bottom-nav backdrop-blur-sm sm:px-4 lg:px-6 lg:pb-3"
       style={{
-        paddingBottom: `calc(0.75rem + ${viewportOffset}px)`,
+        paddingBottom: `calc(5rem + env(safe-area-inset-bottom, 0px) + ${viewportOffset}px)`,
       }}
     >
       {offline && (

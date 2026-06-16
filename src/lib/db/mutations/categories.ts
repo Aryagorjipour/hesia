@@ -1,4 +1,6 @@
 import { db } from "../schema";
+import { recordTombstone } from "@/lib/db/tombstones";
+import { syncNow } from "@/lib/utils/sync-timestamp";
 import type { Category } from "@/types/category";
 
 export async function createCategory(
@@ -15,6 +17,7 @@ export async function createCategory(
     name: trimmed,
     colorHex,
     usageCount: 0,
+    updatedAt: syncNow(),
   };
   await db.categories.put(category);
   return category;
@@ -26,7 +29,7 @@ export async function updateCategory(
 ): Promise<void> {
   const existing = await db.categories.get(name);
   if (!existing) return;
-  await db.categories.update(name, updates);
+  await db.categories.update(name, { ...updates, updatedAt: syncNow() });
 }
 
 export async function renameCategory(
@@ -53,11 +56,13 @@ export async function renameCategory(
       await db.tasks.update(task.id, { category: trimmed });
     }
 
+    await recordTombstone("category", oldName);
     await db.categories.delete(oldName);
     await db.categories.put({
       ...existing,
       name: trimmed,
       usageCount: tasks.length,
+      updatedAt: syncNow(),
     });
   });
 }
@@ -68,6 +73,7 @@ export async function deleteCategory(name: string): Promise<void> {
     for (const task of tasks) {
       await db.tasks.update(task.id, { category: undefined });
     }
+    await recordTombstone("category", name);
     await db.categories.delete(name);
   });
 }

@@ -103,7 +103,7 @@ export function AccountView() {
   const formKey = `${profile.username ?? ""}|${profile.workspaceName ?? ""}`;
 
   return (
-    <div className="space-y-6 overflow-y-auto p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <ProfileForm
         key={formKey}
         initialProfile={profile}

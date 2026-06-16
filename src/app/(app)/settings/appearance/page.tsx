@@ -64,7 +64,7 @@ export default function AppearanceSettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
       <SettingsPageHeader
         title="Appearance"
         description="Themes, workspace layout, and calendar preferences."
@@ -88,7 +88,7 @@ export default function AppearanceSettingsPage() {
           </TabsList>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-bottom-nav sm:p-6 lg:overflow-visible lg:p-8 lg:pb-0">
           <TabsContent value="themes" className="mt-0">
             <ZenPresetPicker
               selected={zenPreset}

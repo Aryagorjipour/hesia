@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { MobilePageHeader } from "@/components/layout/mobile-page-header";
+import { SettingsScrollArea } from "@/components/settings/settings-scroll-area";
 import { db } from "@/lib/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { ZEN_PRESETS } from "@/lib/theme/presets";
@@ -71,13 +72,14 @@ export default function SettingsPage() {
   const workspaceName = settings?.profile?.workspaceName;
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col">
       <MobilePageHeader
         title="Settings"
         subtitle="Your app, your rules"
         className="px-4 sm:px-6 lg:px-8"
       />
 
+      <SettingsScrollArea>
       <div className="space-y-6 p-4 sm:p-6 lg:p-8">
         <Card className="rounded-2xl border-border/80 bg-card/60">
           <CardContent className="flex items-start justify-between gap-4 p-5">
@@ -147,6 +149,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      </SettingsScrollArea>
     </div>
   );
 }

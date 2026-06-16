@@ -17,10 +17,10 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex h-dvh min-h-0 bg-background">
       <Sidebar />
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <PwaUpdateBanner />
         <OfflineBanner />
-        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-16 pt-safe lg:pb-0">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-hidden pt-safe lg:overflow-y-auto">
           {children}
         </main>
         <BottomNav />

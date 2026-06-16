@@ -6,6 +6,11 @@ import type { Category } from "@/types/category";
 import type { WeeklyReport } from "@/types/report";
 import type { ChatSession, ChatMessage } from "@/types/chat";
 import type { AppSettings, UserMemoryEntry } from "@/types/settings";
+import type {
+  DeviceIdentityRecord,
+  SyncTombstone,
+  TrustedSender,
+} from "@/types/p2p-sync";
 
 /**
  * Hesia IndexedDB schema — all app data lives here permanently.
@@ -20,6 +25,9 @@ export class HesiaDB extends Dexie {
   chatMessages!: Table<ChatMessage, string>;
   userMemory!: Table<UserMemoryEntry, string>;
   settings!: Table<AppSettings, string>;
+  deviceIdentity!: Table<DeviceIdentityRecord, string>;
+  trustedSenders!: Table<TrustedSender, string>;
+  syncTombstones!: Table<SyncTombstone, string>;
 
   constructor() {
     super("hesia");
@@ -60,6 +68,43 @@ export class HesiaDB extends Dexie {
                 task.startedOnBoardDate = day;
               }
             }
+          });
+      });
+
+    this.version(3)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        deviceIdentity: "id, deviceId",
+        trustedSenders: "deviceId, trustedAt",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const now = new Date().toISOString();
+        await tx
+          .table("tasks")
+          .toCollection()
+          .modify((task: Task) => {
+            if (!task.updatedAt) task.updatedAt = task.createdAt;
+          });
+        await tx
+          .table("tags")
+          .toCollection()
+          .modify((tag: Tag) => {
+            if (!tag.updatedAt) tag.updatedAt = tag.lastUsedAt ?? now;
+          });
+        await tx
+          .table("categories")
+          .toCollection()
+          .modify((category: Category) => {
+            if (!category.updatedAt) category.updatedAt = now;
           });
       });
   }

@@ -9,7 +9,7 @@ export default function TagsPage() {
         subtitle="Rename, color-code, and manage with live usage counts."
         className="px-4 sm:px-6 lg:px-8"
       />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-bottom-nav lg:pb-0">
         <TagsCategoriesView />
       </div>
     </div>

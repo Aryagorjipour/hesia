@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: "/board", label: "Board", icon: LayoutGrid },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/chat", label: "Chat", icon: MessageCircle },
-  { href: "/tags", label: "Tags & Categories", icon: Tag },
+  { href: "/tags", label: "Tags", icon: Tag },
   { href: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -26,12 +26,14 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                "flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-2xl py-2 text-xs transition-colors",
+                "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 py-2 text-[10px] transition-colors",
                 active ? "text-accent" : "text-muted-foreground",
               )}
             >
-              <Icon className="h-5 w-5" strokeWidth={active ? 2 : 1.5} />
-              <span className="font-medium">{label}</span>
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={active ? 2 : 1.5} />
+              <span className="w-full truncate text-center font-medium leading-none">
+                {label}
+              </span>
             </Link>
           );
         })}

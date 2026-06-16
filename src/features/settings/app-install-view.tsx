@@ -32,7 +32,7 @@ export function AppInstallView() {
   } = useInstallPrompt();
 
   return (
-    <div className="space-y-6 overflow-y-auto p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       {installBlocked && installBlockReason && !installed && (
         <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-4 sm:p-5">
           <div className="flex items-start gap-3">

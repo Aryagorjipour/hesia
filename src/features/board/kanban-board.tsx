@@ -152,7 +152,7 @@ export function KanbanBoard({
   const tasksByStatus = groupTasksByStatus(localTasks, DEFAULT_COLUMNS);
 
   const columns = (
-    <div className="flex-1 overflow-x-auto overscroll-x-contain scroll-smooth px-3 py-3 sm:px-4 sm:py-4 lg:px-6">
+    <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain scroll-smooth px-3 py-3 sm:px-4 sm:py-4 lg:px-6">
       <div className="mx-auto flex h-full min-h-[calc(100dvh-13rem)] w-max items-stretch gap-3 snap-x snap-mandatory sm:min-h-[calc(100dvh-12rem)] sm:gap-4">
         {DEFAULT_COLUMNS.map((status) => (
           <KanbanColumn

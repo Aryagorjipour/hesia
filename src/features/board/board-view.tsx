@@ -153,7 +153,7 @@ export function BoardView() {
       : "One board per day");
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden">
       <MobilePageHeader
         title={boardTitle}
         subtitle={boardSubtitle}
@@ -216,15 +216,20 @@ export function BoardView() {
           <div className="h-8 w-8 animate-pulse rounded-full bg-accent/30" />
         </div>
       ) : isEmpty ? (
-        <div className="flex flex-1 items-center justify-center p-8">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-x-hidden px-4 py-6 sm:p-8">
           <EmptyState
             icon={LayoutGrid}
             title="Nothing here yet"
-            description="Quick-log your first win — past tense goes to Done, plans land in To Do."
+            description="Quick-log a win — past tense goes to Done, plans to To Do."
+            className="w-full max-w-sm"
             action={
-              <Button onClick={() => openQuickCapture("inbox", selectedBoardDate)}>
+              <Button
+                className="w-full max-w-xs sm:w-auto"
+                onClick={() => openQuickCapture("inbox", selectedBoardDate)}
+              >
                 <Plus className="h-4 w-4" />
-                Quick log your first win
+                <span className="sm:hidden">Quick log</span>
+                <span className="hidden sm:inline">Quick log your first win</span>
               </Button>
             }
           />
@@ -251,10 +256,10 @@ export function BoardView() {
         </div>
       )}
 
-      {canQuickLog && (
+      {canQuickLog && !isEmpty && (
         <Button
           size="icon"
-          className="fixed bottom-24 right-6 z-40 h-14 w-14 rounded-full shadow-lg lg:bottom-8"
+          className="fixed bottom-24 right-4 z-40 h-14 w-14 rounded-full shadow-lg sm:right-6 lg:bottom-8"
           onClick={() => openQuickCapture("inbox", selectedBoardDate)}
           aria-label="Quick log"
         >

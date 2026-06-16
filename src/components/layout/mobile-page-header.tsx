@@ -37,11 +37,11 @@ export function MobilePageHeader({
       )}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-lg font-medium tracking-tight text-foreground lg:text-2xl">
+          <h1 className="truncate text-lg font-medium tracking-tight text-foreground lg:text-2xl">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
+            <p className="mt-0.5 truncate text-xs text-muted-foreground sm:text-sm">
               {subtitle}
             </p>
           )}

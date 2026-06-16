@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../schema";
+import { recordTombstone } from "@/lib/db/tombstones";
+import { syncNow } from "@/lib/utils/sync-timestamp";
 import { toISO } from "@/lib/utils/dates";
 import { nextBoardDate } from "@/lib/utils/board-dates";
 import type { Task, TaskStatus, DayTransition } from "@/types/task";
@@ -63,10 +65,12 @@ export async function createTask(
   const sortOrder =
     input.sortOrder ?? (await getNextSortOrder(input.status, boardDate));
 
+  const now = syncNow();
   const task: Task = {
     ...input,
     id: uuidv4(),
-    createdAt: toISO(new Date()),
+    createdAt: now,
+    updatedAt: now,
     sortOrder,
     boardDate,
     startedOnBoardDate:
@@ -89,7 +93,7 @@ export async function updateTask(
   const existing = await db.tasks.get(id);
   if (!existing) return;
 
-  const updated = { ...existing, ...updates };
+  const updated = { ...existing, ...updates, updatedAt: syncNow() };
 
   if (updates.status === "done" && !updated.completedAt) {
     updated.completedAt = toISO(new Date());
@@ -125,6 +129,7 @@ export async function updateTask(
 export async function deleteTask(id: string): Promise<void> {
   const existing = await db.tasks.get(id);
   if (!existing) return;
+  await recordTombstone("task", id);
   await db.tasks.delete(id);
   await recomputeTagUsage(existing.tags);
   if (existing.category) await recomputeCategoryUsage(existing.category);
@@ -152,6 +157,7 @@ export async function carryTaskToNextDay(taskId: string): Promise<void> {
     sortOrder,
     startedOnBoardDate: task.startedOnBoardDate ?? task.boardDate,
     dayTransitions: [...(task.dayTransitions ?? []), transition],
+    updatedAt: syncNow(),
   });
 }
 
@@ -172,6 +178,7 @@ export async function undoLastDayTransition(taskId: string): Promise<boolean> {
     status: last.fromStatus,
     sortOrder,
     dayTransitions: transitions.length > 0 ? transitions : undefined,
+    updatedAt: syncNow(),
   });
 
   return true;
@@ -223,6 +230,7 @@ export async function syncKanbanTasks(
           sortOrder: i,
           ...boardPatch,
           ...startedPatch,
+          updatedAt: syncNow(),
         });
       }
     }

@@ -1,4 +1,6 @@
 import { db } from "../schema";
+import { recordTombstone } from "@/lib/db/tombstones";
+import { syncNow } from "@/lib/utils/sync-timestamp";
 import { toISO } from "@/lib/utils/dates";
 import type { Tag } from "@/types/tag";
 
@@ -16,6 +18,7 @@ export async function createTag(
     name: trimmed,
     colorHex,
     usageCount: 0,
+    updatedAt: syncNow(),
   };
   await db.tags.put(tag);
   return tag;
@@ -27,7 +30,7 @@ export async function updateTag(
 ): Promise<void> {
   const existing = await db.tags.get(name);
   if (!existing) return;
-  await db.tags.update(name, updates);
+  await db.tags.update(name, { ...updates, updatedAt: syncNow() });
 }
 
 export async function renameTag(
@@ -53,12 +56,14 @@ export async function renameTag(
       });
     }
 
+    await recordTombstone("tag", oldName);
     await db.tags.delete(oldName);
     await db.tags.put({
       ...existing,
       name: trimmed,
       usageCount: tasks.length,
       lastUsedAt: tasks.length > 0 ? toISO(new Date()) : existing.lastUsedAt,
+      updatedAt: syncNow(),
     });
   });
 }
@@ -80,6 +85,7 @@ export async function deleteTag(name: string): Promise<void> {
         tags: task.tags.filter((t) => t !== name),
       });
     }
+    await recordTombstone("tag", name);
     await db.tags.delete(name);
   });
 }

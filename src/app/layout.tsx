@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
 import { SwRegister } from "@/components/providers/sw-register";
+import { BRAND } from "@/lib/app/branding";
 import { APP_NAME, withBasePath } from "@/lib/app/site";
 import "./globals.css";
 
@@ -25,20 +26,17 @@ export const metadata: Metadata = {
     title: APP_NAME,
   },
   icons: {
-    apple: withBasePath("/icons/icon-192.png"),
     icon: [
-      {
-        url: withBasePath("/icons/icon-192.png"),
-        sizes: "192x192",
-        type: "image/png",
-      },
-      {
-        url: withBasePath("/icons/icon-512.png"),
-        sizes: "512x512",
-        type: "image/png",
-      },
+      { url: BRAND.favicon, sizes: "any" },
+      { url: BRAND.favicon16, sizes: "16x16", type: "image/png" },
+      { url: BRAND.favicon32, sizes: "32x32", type: "image/png" },
+      { url: BRAND.pwa192, sizes: "192x192", type: "image/png" },
+      { url: BRAND.pwa512, sizes: "512x512", type: "image/png" },
     ],
+    apple: [{ url: BRAND.appleTouchIcon, sizes: "180x180", type: "image/png" }],
+    shortcut: [BRAND.favicon],
   },
+  manifest: withBasePath("/manifest.webmanifest"),
   formatDetection: {
     telephone: false,
   },
@@ -46,8 +44,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: light)", color: "#b8c4bc" },
+    { media: "(prefers-color-scheme: dark)", color: "#2d3a36" },
   ],
   width: "device-width",
   initialScale: 1,

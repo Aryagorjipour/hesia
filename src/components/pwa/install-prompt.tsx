@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, Share, X } from "lucide-react";
+import { Share, X } from "lucide-react";
+import { HesiaLogo } from "@/components/brand/hesia-logo";
 import { useInstallPrompt } from "@/lib/hooks/use-install-prompt";
 import { Button } from "@/components/ui/button";
 
@@ -14,9 +15,7 @@ export function InstallPrompt() {
     <div className="fixed bottom-20 left-3 right-3 z-50 mx-auto max-w-lg lg:bottom-6 lg:left-auto lg:right-6">
       <div className="rounded-2xl border border-border bg-card/95 p-4 shadow-lg backdrop-blur-lg">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15">
-            <Download className="h-5 w-5 text-accent" />
-          </div>
+          <HesiaLogo size={40} className="shrink-0" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-foreground">
               Install Hesia

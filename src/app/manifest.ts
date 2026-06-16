@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { BRAND } from "@/lib/app/branding";
 import { APP_NAME, withBasePath } from "@/lib/app/site";
 
 export const dynamic = "force-static";
@@ -15,28 +16,34 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: withBasePath("/board"),
     scope,
     display: "standalone",
-    background_color: "#09090b",
-    theme_color: "#0d9488",
+    background_color: "#2d3a36",
+    theme_color: "#7a9e97",
     orientation: "portrait-primary",
     categories: ["productivity", "lifestyle"],
     icons: [
       {
-        src: withBasePath("/icons/icon-192.png"),
+        src: BRAND.pwa192,
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: withBasePath("/icons/icon-512.png"),
+        src: BRAND.pwa512,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: withBasePath("/icons/icon-maskable-512.png"),
+        src: BRAND.pwa512,
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+      {
+        src: BRAND.appleTouchIcon,
+        sizes: "180x180",
+        type: "image/png",
+        purpose: "any",
       },
     ],
     shortcuts: [
@@ -44,17 +51,13 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Board",
         short_name: "Board",
         url: withBasePath("/board"),
-        icons: [
-          { src: withBasePath("/icons/icon-192.png"), sizes: "192x192" },
-        ],
+        icons: [{ src: BRAND.pwa192, sizes: "192x192" }],
       },
       {
         name: "Reports",
         short_name: "Reports",
         url: withBasePath("/reports"),
-        icons: [
-          { src: withBasePath("/icons/icon-192.png"), sizes: "192x192" },
-        ],
+        icons: [{ src: BRAND.pwa192, sizes: "192x192" }],
       },
     ],
     screenshots: [

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { TaskStatusSchema } from "./task";
 
 export const ZenPresetSchema = z.enum([
+  "sage-dune",
+  "sage-dune-dark",
   "calm-teal",
   "warm-arc",
   "forest-zen",
@@ -80,7 +82,7 @@ export const AppSettingsSchema = z.object({
   id: z.literal("default"),
   onboardingComplete: z.boolean().default(false),
   profile: ProfileSchema.default({}),
-  zenPreset: ZenPresetSchema.default("calm-teal"),
+  zenPreset: ZenPresetSchema.default("sage-dune-dark"),
   presetWorkspaceConfigs: z
     .record(z.string(), PresetWorkspaceConfigSchema)
     .optional(),

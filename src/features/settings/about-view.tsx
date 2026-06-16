@@ -1,14 +1,14 @@
 "use client";
 
-import { HesiaStarMark } from "@/features/onboarding/hesia-star-mark";
+import { HesiaLogo } from "@/components/brand/hesia-logo";
 import { APP_META, getCopyrightNotice } from "@/lib/app/meta";
 
 export function AboutView() {
   return (
     <div className="space-y-6 overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="rounded-2xl border border-border bg-card/50 p-5 text-center sm:p-6">
-        <div className="mx-auto mb-4 w-fit">
-          <HesiaStarMark glow />
+        <div className="mx-auto mb-4 flex justify-center">
+          <HesiaLogo variant="horizontal" className="h-14 sm:h-16" priority />
         </div>
         <p className="text-lg font-medium text-foreground">{APP_META.name}</p>
         <p className="mt-1 text-xs text-muted-foreground">v{APP_META.version}</p>

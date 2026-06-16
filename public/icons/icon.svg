@@ -1,6 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="128" fill="#09090b"/>
-  <circle cx="256" cy="256" r="120" fill="#0d9488" opacity="0.25"/>
-  <circle cx="256" cy="256" r="80" fill="#0d9488" opacity="0.5"/>
-  <path d="M256 176 L276 256 L356 256 L292 304 L312 384 L256 336 L200 384 L220 304 L156 256 L236 256 Z" fill="#14b8a6"/>
+  <defs>
+    <linearGradient id="sky" x1="80" y1="48" x2="432" y2="464" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#89A8A4"/>
+      <stop offset="45%" stop-color="#9AADA4"/>
+      <stop offset="100%" stop-color="#C9BAA6"/>
+    </linearGradient>
+    <linearGradient id="dune" x1="64" y1="300" x2="448" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#B8AB96" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6D8F89" stop-opacity="0.35"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#sky)"/>
+  <path
+    d="M0 340 C120 280, 220 380, 340 320 C400 288, 460 300, 512 340 L512 512 L0 512 Z"
+    fill="url(#dune)"
+  />
+  <circle cx="256" cy="232" r="88" stroke="#FFFFFF" stroke-width="22" opacity="0.95"/>
 </svg>

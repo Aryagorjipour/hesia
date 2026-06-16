@@ -8,9 +8,9 @@ import {
   BarChart3,
   MessageCircle,
   Settings,
-  Sparkles,
   Tag,
 } from "lucide-react";
+import { HesiaLogo } from "@/components/brand/hesia-logo";
 import { cn } from "@/lib/utils/cn";
 import { db } from "@/lib/db/schema";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -35,9 +35,7 @@ export function Sidebar() {
   return (
     <aside className="hidden lg:flex lg:w-60 lg:flex-col lg:border-r lg:border-border lg:bg-card/30 lg:backdrop-blur-md">
       <div className="flex h-16 items-center gap-3 px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20">
-          <Sparkles className="h-4 w-4 text-accent" strokeWidth={1.5} />
-        </div>
+        <HesiaLogo size={36} className="shrink-0 rounded-xl" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">
             {workspaceName}

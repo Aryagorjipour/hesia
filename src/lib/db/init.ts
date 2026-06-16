@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   id: "default",
   onboardingComplete: false,
   profile: {},
-  zenPreset: "calm-teal",
+  zenPreset: "sage-dune-dark",
   weekStartsOn: 1,
   theme: "dark",
   notifications: {

@@ -46,10 +46,13 @@ function PresetGrid({
               <CardContent className="p-4">
                 <div
                   className="mb-3 flex h-20 items-center justify-center rounded-xl"
-                  style={{ background: preset.background }}
+                  style={{
+                    background:
+                      preset.backgroundGradient ?? preset.background,
+                  }}
                 >
                   <div
-                    className="h-8 w-8 rounded-full"
+                    className="h-8 w-8 rounded-full ring-2 ring-white/90"
                     style={{ background: preset.accent }}
                   />
                 </div>

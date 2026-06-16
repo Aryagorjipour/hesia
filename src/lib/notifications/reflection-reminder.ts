@@ -1,4 +1,6 @@
 import { getDay, getHours } from "date-fns";
+import { BRAND } from "@/lib/app/branding";
+import { withBasePath } from "@/lib/app/site";
 import type { AppSettings } from "@/types/settings";
 import { formatWeekStartISO } from "@/lib/stats/week-aggregator";
 import { normalizeWeekStartsOn } from "@/lib/utils/week-config";
@@ -50,13 +52,13 @@ export function showReflectionNotification(): void {
 
   const notification = new Notification("Hesia — weekly reflection", {
     body: "A gentle nudge to review your week and generate a reflection.",
-    icon: "/icon-192.png",
+    icon: BRAND.pwa192,
     tag: "hesia-weekly-reflection",
   });
 
   notification.onclick = () => {
     window.focus();
-    window.location.href = "/reports";
+    window.location.href = withBasePath("/reports");
     notification.close();
   };
 

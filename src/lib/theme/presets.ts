@@ -6,6 +6,8 @@ export interface ZenThemeTokens {
   description: string;
   mode: "light" | "dark";
   background: string;
+  /** Optional gradient layered over background (icon-inspired sage → warm neutral) */
+  backgroundGradient?: string;
   foreground: string;
   card: string;
   cardForeground: string;
@@ -19,7 +21,49 @@ export interface ZenThemeTokens {
   unplanned: string;
 }
 
+export const DEFAULT_ZEN_PRESET = "sage-dune-dark" as const satisfies ZenPreset;
+
 export const ZEN_PRESETS: Record<ZenPreset, ZenThemeTokens> = {
+  "sage-dune": {
+    id: "sage-dune",
+    name: "Sage Dune",
+    description: "Soft sage-teal to warm neutral — light, organic calm",
+    mode: "light",
+    background: "#b8c4bc",
+    backgroundGradient:
+      "linear-gradient(165deg, #89a8a4 0%, #9aada4 30%, #b8ab96 68%, #d0c2ae 100%)",
+    foreground: "#2a3532",
+    card: "rgba(255, 255, 255, 0.78)",
+    cardForeground: "#2a3532",
+    muted: "rgba(137, 168, 164, 0.22)",
+    mutedForeground: "#5a6b66",
+    accent: "#6d8f89",
+    accentForeground: "#ffffff",
+    border: "rgba(42, 53, 50, 0.1)",
+    ring: "#89a8a4",
+    planned: "#4a7c6f",
+    unplanned: "#b8956a",
+  },
+  "sage-dune-dark": {
+    id: "sage-dune-dark",
+    name: "Sage Dune",
+    description: "Muted sage-teal dusk with warm neutral depth",
+    mode: "dark",
+    background: "#2d3a36",
+    backgroundGradient:
+      "linear-gradient(165deg, #243632 0%, #2d433c 28%, #38342e 62%, #443d34 100%)",
+    foreground: "#e6ebe8",
+    card: "rgba(36, 50, 46, 0.82)",
+    cardForeground: "#e6ebe8",
+    muted: "rgba(58, 74, 68, 0.55)",
+    mutedForeground: "#9aaea6",
+    accent: "#7a9e97",
+    accentForeground: "#f4f8f6",
+    border: "rgba(255, 255, 255, 0.08)",
+    ring: "#8fb5ac",
+    planned: "#5d9e8f",
+    unplanned: "#c9a56c",
+  },
   "calm-teal": {
     id: "calm-teal",
     name: "Calm Teal",
@@ -384,6 +428,7 @@ export const ZEN_PRESETS: Record<ZenPreset, ZenThemeTokens> = {
 
 /** Curated display order — neutrals → nature → cool → warm */
 export const DARK_ZEN_PRESET_IDS = [
+  "sage-dune-dark",
   "calm-teal",
   "monochrome-focus",
   "ink-studio",
@@ -398,6 +443,7 @@ export const DARK_ZEN_PRESET_IDS = [
 
 /** Curated display order — minimal → nature → warm → expressive */
 export const LIGHT_ZEN_PRESET_IDS = [
+  "sage-dune",
   "slate-minimal",
   "sky-clarity",
   "paper-zen",
@@ -415,6 +461,11 @@ export function applyZenPreset(preset: ZenPreset): void {
   const root = document.documentElement;
 
   root.style.setProperty("--background", tokens.background);
+  if (tokens.backgroundGradient) {
+    root.style.setProperty("--background-gradient", tokens.backgroundGradient);
+  } else {
+    root.style.removeProperty("--background-gradient");
+  }
   root.style.setProperty("--foreground", tokens.foreground);
   root.style.setProperty("--card", tokens.card);
   root.style.setProperty("--card-foreground", tokens.cardForeground);

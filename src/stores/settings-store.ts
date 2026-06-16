@@ -14,7 +14,7 @@ interface SettingsUIState {
 export const useSettingsStore = create<SettingsUIState>()(
   persist(
     (set) => ({
-      zenPreset: "calm-teal",
+      zenPreset: "sage-dune-dark",
       sidebarCollapsed: false,
       lastSelectedWeek: null,
       setZenPreset: (preset) => set({ zenPreset: preset }),

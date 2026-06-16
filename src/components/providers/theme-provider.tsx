@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useSettingsStore } from "@/stores/settings-store";
-import { applyZenPreset } from "@/lib/theme/presets";
+import { applyZenPreset, DEFAULT_ZEN_PRESET } from "@/lib/theme/presets";
 import type { ZenPreset } from "@/types/settings";
 
 interface ThemeProviderProps {
@@ -12,7 +12,7 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({
   children,
-  initialPreset = "calm-teal",
+  initialPreset = DEFAULT_ZEN_PRESET,
 }: ThemeProviderProps) {
   const zenPreset = useSettingsStore((s) => s.zenPreset);
   const setZenPreset = useSettingsStore((s) => s.setZenPreset);

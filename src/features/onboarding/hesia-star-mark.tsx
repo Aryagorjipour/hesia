@@ -26,7 +26,7 @@ export function HesiaStarMark({
       className={cn(
         "flex items-center justify-center bg-accent/15",
         s.box,
-        glow && "shadow-[0_0_40px_rgba(13,148,136,0.45)]",
+        glow && "shadow-[0_0_40px_rgba(122,158,151,0.45)]",
         className,
       )}
     >

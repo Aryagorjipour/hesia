@@ -1,8 +1,8 @@
 /**
- * Generates PWA PNG icons and screenshots from the SVG source.
+ * Syncs PWA icons from /public/favicon and generates store screenshots from brand logo.
  * Run: node scripts/generate-icons.mjs
  */
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { copyFileSync, mkdirSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import sharp from "sharp";
@@ -11,49 +11,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const iconsDir = join(root, "public", "icons");
 const screenshotsDir = join(root, "public", "screenshots");
-const svgPath = join(iconsDir, "icon.svg");
+const faviconDir = join(root, "public", "favicon");
+const logoPath = join(root, "public", "assets", "LOGO-TRANSPARENT.png");
+const appDir = join(root, "src", "app");
 
 mkdirSync(iconsDir, { recursive: true });
 mkdirSync(screenshotsDir, { recursive: true });
+mkdirSync(appDir, { recursive: true });
 
-const svg = readFileSync(svgPath);
-
-async function generateIcons() {
-  const sizes = [
-    { name: "icon-192.png", size: 192 },
-    { name: "icon-512.png", size: 512 },
-    { name: "icon-maskable-512.png", size: 512, padding: 0.15 },
+function syncPwaIcons() {
+  const copies = [
+    [join(faviconDir, "android-chrome-192x192.png"), join(iconsDir, "icon-192.png")],
+    [join(faviconDir, "android-chrome-512x512.png"), join(iconsDir, "icon-512.png")],
+    [join(faviconDir, "android-chrome-512x512.png"), join(iconsDir, "icon-maskable-512.png")],
+    [join(faviconDir, "favicon.ico"), join(appDir, "favicon.ico")],
   ];
 
-  for (const { name, size, padding = 0 } of sizes) {
-    let buffer;
-
-    if (padding > 0) {
-      const inner = Math.round(size * (1 - padding * 2));
-      const offset = Math.round(size * padding);
-      const innerPng = await sharp(svg).resize(inner, inner).png().toBuffer();
-      buffer = await sharp({
-        create: {
-          width: size,
-          height: size,
-          channels: 4,
-          background: { r: 9, g: 9, b: 11, alpha: 1 },
-        },
-      })
-        .composite([{ input: innerPng, left: offset, top: offset }])
-        .png()
-        .toBuffer();
-    } else {
-      buffer = await sharp(svg).resize(size, size).png().toBuffer();
-    }
-
-    writeFileSync(join(iconsDir, name), buffer);
-    console.log(`Created ${name}`);
+  for (const [from, to] of copies) {
+    copyFileSync(from, to);
+    console.log(`Synced ${to.replace(root + join("", ""), "").replace(root, "").replace(/^[/\\]/, "")}`);
   }
 }
 
 async function generateScreenshots() {
-  const iconPng = await sharp(svg).resize(96, 96).png().toBuffer();
+  const iconPng = await sharp(logoPath).resize(120, 120).png().toBuffer();
 
   const screenshots = [
     { name: "mobile-narrow.png", width: 390, height: 844 },
@@ -66,14 +47,14 @@ async function generateScreenshots() {
         width,
         height,
         channels: 4,
-        background: { r: 9, g: 9, b: 11, alpha: 1 },
+        background: { r: 45, g: 58, b: 54, alpha: 1 },
       },
     })
       .composite([
         {
           input: iconPng,
-          left: Math.round((width - 96) / 2),
-          top: Math.round((height - 96) / 2),
+          left: Math.round((width - 120) / 2),
+          top: Math.round((height - 120) / 2),
         },
       ])
       .png()
@@ -85,7 +66,7 @@ async function generateScreenshots() {
 }
 
 async function generate() {
-  await generateIcons();
+  syncPwaIcons();
   await generateScreenshots();
 }
 

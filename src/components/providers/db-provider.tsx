@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { initializeDatabase } from "@/lib/db/init";
 import { useSettingsStore } from "@/stores/settings-store";
-import { HesiaStarMark } from "@/features/onboarding/hesia-star-mark";
+import { HesiaLogo } from "@/components/brand/hesia-logo";
 import type { AppSettings } from "@/types/settings";
 
 interface DbProviderProps {
@@ -38,7 +38,7 @@ export function DbProvider({ children }: DbProviderProps) {
   if (!settings) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-        <HesiaStarMark size="sm" glow className="animate-pulse" />
+        <HesiaLogo size={48} className="animate-pulse" priority />
         <p className="text-sm text-muted-foreground">Opening your space...</p>
       </div>
     );

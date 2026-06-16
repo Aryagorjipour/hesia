@@ -15,7 +15,9 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  ...(isGithubPages ? { output: "export" as const } : {}),
+  ...(isGithubPages
+    ? { output: "export" as const }
+    : { output: "standalone" as const }),
   basePath,
   assetPrefix: basePath ? `${basePath}/` : undefined,
   trailingSlash: true,

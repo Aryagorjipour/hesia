@@ -24,8 +24,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: package-lock.json
 
-      - run: npm ci
+      - run: npm ci --registry=https://registry.npmjs.org/
       - run: npm run build:pages
 
       - name: Upload Pages artifact

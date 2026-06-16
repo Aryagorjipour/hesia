@@ -1,15 +1,57 @@
 "use client";
 
-import { Download, Monitor, Share, Smartphone, Check } from "lucide-react";
+import {
+  Download,
+  Menu,
+  Monitor,
+  Share,
+  Smartphone,
+  Check,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  FirefoxDesktopSteps,
+  InstallBlockNotice,
+  StepList,
+} from "@/components/pwa/install-guidance";
 import { useInstallPrompt } from "@/lib/hooks/use-install-prompt";
 import { APP_META } from "@/lib/app/meta";
 import { Button } from "@/components/ui/button";
 
 export function AppInstallView() {
-  const { canInstall, isIOS, installed, install } = useInstallPrompt();
+  const {
+    canInstall,
+    isIOS,
+    isFirefox,
+    isFirefoxMobile,
+    installBlockReason,
+    installBlocked,
+    liveInstallUrl,
+    installed,
+    install,
+  } = useInstallPrompt();
 
   return (
     <div className="space-y-6 overflow-y-auto p-4 sm:p-6 lg:p-8">
+      {installBlocked && installBlockReason && !installed && (
+        <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-unplanned" />
+            <div className="min-w-0 space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                Install unavailable on this page
+              </p>
+              <InstallBlockNotice reason={installBlockReason} />
+              <Button size="sm" className="h-9" asChild>
+                <a href={liveInstallUrl} target="_blank" rel="noopener noreferrer">
+                  Open live app
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15">
@@ -41,7 +83,7 @@ export function AppInstallView() {
         )}
       </div>
 
-      {!installed && (
+      {!installed && !isFirefox && !isIOS && (
         <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent/15">
@@ -61,11 +103,36 @@ export function AppInstallView() {
                 >
                   {APP_META.siteUrl}
                 </a>{" "}
-                in Chrome or Edge, then use the install icon in the address bar
-                (or Settings → App → Install here when prompted).
+                in Chrome, Edge, or Firefox, then use the install icon in the
+                address bar (or Settings → App → Install here when prompted).
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {!installed && isFirefox && !installBlocked && (
+        <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+          <p className="text-sm font-medium text-foreground">
+            Install in Firefox
+          </p>
+          {isFirefoxMobile ? (
+            <StepList
+              steps={[
+                <>
+                  Open the <Menu className="inline h-3 w-3" /> menu (three dots)
+                  in the toolbar
+                </>,
+                <>
+                  Tap <strong className="font-medium text-foreground">Install</strong>{" "}
+                  — Hesia is added to your home screen
+                </>,
+                "Launch Hesia from your home screen for a full-screen app experience",
+              ]}
+            />
+          ) : (
+            <FirefoxDesktopSteps />
+          )}
         </div>
       )}
 
@@ -74,29 +141,16 @@ export function AppInstallView() {
           <p className="text-sm font-medium text-foreground">
             Add to Home Screen (iOS)
           </p>
-          <ol className="mt-3 space-y-2 text-xs leading-relaxed text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium">
-                1
-              </span>
-              <span>
+          <StepList
+            steps={[
+              <>
                 Tap the <Share className="inline h-3 w-3" /> Share button in
                 Safari
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium">
-                2
-              </span>
-              <span>Scroll down and tap &quot;Add to Home Screen&quot;</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium">
-                3
-              </span>
-              <span>Tap Add — Hesia opens full-screen like a native app</span>
-            </li>
-          </ol>
+              </>,
+              <>Scroll down and tap &quot;Add to Home Screen&quot;</>,
+              "Tap Add — Hesia opens full-screen like a native app",
+            ]}
+          />
         </div>
       )}
 

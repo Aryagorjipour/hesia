@@ -1,6 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { APP_META } from "@/lib/app/meta";
+import {
+  isFirefox,
+  isFirefoxMobile,
+  isIOS,
+  isStandalone,
+  needsManualInstall,
+} from "@/lib/utils/browser";
+import {
+  getInstallBlockReason,
+  resolveInstallBlockReason,
+  type InstallBlockReason,
+} from "@/lib/utils/install-eligibility";
 
 const DISMISS_KEY = "hesia-install-dismissed";
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -8,20 +21,6 @@ const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
-function isIOS() {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
-
-function isStandalone() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    ("standalone" in navigator &&
-      (navigator as Navigator & { standalone?: boolean }).standalone === true)
-  );
 }
 
 function wasDismissedRecently() {
@@ -38,7 +37,7 @@ function wasDismissedRecently() {
 function getInitialShowPrompt() {
   if (typeof window === "undefined") return false;
   if (isStandalone() || wasDismissedRecently()) return false;
-  return isIOS();
+  return needsManualInstall();
 }
 
 export function useInstallPrompt() {
@@ -48,6 +47,20 @@ export function useInstallPrompt() {
     typeof window === "undefined" ? false : isStandalone(),
   );
   const [showPrompt, setShowPrompt] = useState(getInitialShowPrompt);
+  const [installBlockReason, setInstallBlockReason] =
+    useState<InstallBlockReason | null>(() => getInstallBlockReason());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void resolveInstallBlockReason().then((reason) => {
+      if (!cancelled) setInstallBlockReason(reason);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (isStandalone() || wasDismissedRecently()) return;
@@ -60,7 +73,7 @@ export function useInstallPrompt() {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
-    if (isIOS() && !isStandalone()) {
+    if (needsManualInstall() && !isStandalone()) {
       const timer = window.setTimeout(() => setShowPrompt(true), 3000);
       return () => {
         window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
@@ -99,6 +112,12 @@ export function useInstallPrompt() {
   return {
     canInstall: !!deferredPrompt,
     isIOS: isIOS(),
+    isFirefox: isFirefox(),
+    isFirefoxMobile: isFirefoxMobile(),
+    needsManualInstall: needsManualInstall(),
+    installBlockReason,
+    installBlocked: installBlockReason !== null,
+    liveInstallUrl: APP_META.siteUrl,
     installed,
     showPrompt: showPrompt && !installed,
     install,

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils/cn";
 import { APP_NAME } from "@/lib/app/site";
 import { BRAND } from "@/lib/app/branding";
 
-type LogoVariant = "mark" | "horizontal";
+type LogoVariant = "mark" | "horizontal" | "banner";
 
 interface HesiaLogoProps {
   variant?: LogoVariant;
@@ -29,6 +29,23 @@ export function HesiaLogo({
         priority={priority}
         unoptimized
         className={cn("h-10 w-auto max-w-[220px] object-contain", className)}
+      />
+    );
+  }
+
+  if (variant === "banner") {
+    return (
+      <Image
+        src={BRAND.logoHorizontal}
+        alt={APP_NAME}
+        width={560}
+        height={140}
+        priority={priority}
+        unoptimized
+        className={cn(
+          "h-20 w-full max-w-xl object-contain sm:h-28 md:h-32",
+          className,
+        )}
       />
     );
   }

@@ -6,15 +6,16 @@ import { APP_META, getCopyrightNotice } from "@/lib/app/meta";
 export function AboutView() {
   return (
     <div className="space-y-6 overflow-y-auto p-4 sm:p-6 lg:p-8">
-      <div className="rounded-2xl border border-border bg-card/50 p-5 text-center sm:p-6">
-        <div className="mx-auto mb-4 flex justify-center">
-          <HesiaLogo variant="horizontal" className="h-14 sm:h-16" priority />
+      <div className="overflow-hidden rounded-2xl border border-border bg-card/50">
+        <div className="flex items-center justify-center bg-gradient-to-b from-accent/12 via-accent/6 to-transparent px-6 py-10 sm:px-10 sm:py-14">
+          <HesiaLogo variant="banner" priority />
         </div>
-        <p className="text-lg font-medium text-foreground">{APP_META.name}</p>
-        <p className="mt-1 text-xs text-muted-foreground">v{APP_META.version}</p>
-        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          {APP_META.tagline}
-        </p>
+        <div className="px-5 pb-5 text-center sm:px-6 sm:pb-6">
+          <p className="text-xs text-muted-foreground">v{APP_META.version}</p>
+          <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            {APP_META.tagline}
+          </p>
+        </div>
       </div>
 
       <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">

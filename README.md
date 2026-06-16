@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hesia
 
-## Getting Started
+**v0.1.0** — Privacy-first, local-first Kanban and reflection companion with contextual AI.
 
-First, run the development server:
+Everything stays in your browser. No accounts, no cloud sync, no telemetry.
+
+**Live app:** [https://aryagorjipour.github.io/hesia/](https://aryagorjipour.github.io/hesia/)
+
+## Install on desktop or phone
+
+Hesia is a Progressive Web App (PWA). You can install it like a native app:
+
+1. Open the [live app](https://aryagorjipour.github.io/hesia/) in **Chrome** or **Edge**
+2. Click the **install** icon in the address bar, or use the in-app prompt (Settings → App)
+3. Hesia opens in its own window — pinned to your taskbar or dock
+
+**iOS:** Safari → Share → Add to Home Screen
+
+After the first visit, board, reports, and settings work offline. AI chat and weekly reflections need a connection.
+
+## Features
+
+- Daily Kanban board with planned work and flow wins
+- Tags, categories, and weekly reports
+- Local AI companion (bring your own API key)
+- Encrypted export/import (ZIP, JSON, `.hesia`)
+- 20 zen themes, workspace personalization
+- Full PWA — installable and offline-capable
+
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server |
+| `npm run build` | Production build |
+| `npm run build:pages` | Static export for GitHub Pages |
+| `npm run start` | Production server |
+| `npm run lint` | ESLint |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## GitHub Pages deployment
 
-## Learn More
+This repo deploys automatically to GitHub Pages on push to `main`.
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a public repo named **`hesia`** under [@Aryagorjipour](https://github.com/Aryagorjipour)
+2. Push this project to `main`
+3. In repo **Settings → Pages**, set source to **GitHub Actions**
+4. The deploy workflow publishes to `https://aryagorjipour.github.io/hesia/`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Next.js 16 · React 19 · Tailwind 4 · Dexie · Zustand · Serwist PWA · Framer Motion
 
-## Deploy on Vercel
+## Author
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Arya Gorjipour** — [github.com/Aryagorjipour](https://github.com/Aryagorjipour/)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT — see [LICENSE](LICENSE)

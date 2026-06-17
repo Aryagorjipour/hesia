@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TaskStatusSchema } from "./task";
-import { DeviceSyncSettingsSchema } from "./device-sync";
 
 export const ZenPresetSchema = z.enum([
   "sage-dune",
@@ -103,7 +102,6 @@ export const AppSettingsSchema = z.object({
       reflectionHour: 18,
     }),
   dataDirectoryHint: z.string().optional(),
-  deviceSync: DeviceSyncSettingsSchema.optional(),
   version: z.string().default("0.1.0"),
 });
 

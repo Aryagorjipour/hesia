@@ -24,7 +24,6 @@ After the first visit, board, reports, and settings work offline. AI chat and we
 - Tags, categories, and weekly reports
 - Local AI companion (bring your own API key)
 - Encrypted export/import (ZIP, JSON, `.hesia`)
-- LAN device sync via local WebSocket relay (ShareIt-style)
 - 20 zen themes, workspace personalization
 - Full PWA — installable and offline-capable
 
@@ -44,34 +43,6 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run build:pages` | Static export for GitHub Pages |
 | `npm run start` | Production server |
 | `npm run lint` | ESLint |
-| `npm run sync:relay` | LAN WebSocket relay for device sync |
-| `npm test` | Relay protocol tests |
-
-## Device sync (LAN relay)
-
-Sync Hesia data between devices on the same Wi‑Fi without cloud accounts. A desktop machine runs a tiny relay; phones and laptops connect, pick a nearby device, and transfer the same encrypted bundle used for export/import.
-
-### 1. Start the relay on desktop
-
-```bash
-npm run sync:relay
-```
-
-The relay binds `0.0.0.0:8765` and prints a URL like `ws://192.168.x.x:8765`. Optional PIN: `HESIA_RELAY_PIN=1234 npm run sync:relay`.
-
-### 2. Connect both devices
-
-1. Open **Settings → Data & Privacy → Device sync** (or `/settings/data/sync`)
-2. Set a **sync password** (required on both sides)
-3. Enter the relay URL (or scan the QR on desktop)
-4. Tap **Connect** on each device — nearby peers appear in the list
-5. **Send data** on one device; **Accept** on the other
-
-Signaling goes through the relay; your bundle is encrypted end-to-end over a WebRTC data channel. The relay never sees plaintext data.
-
-### GitHub Pages + mixed content
-
-The live app is served over **HTTPS**. Browsers block `ws://` connections from HTTPS pages. For phone ↔ laptop sync while using the hosted app, open Hesia over **HTTP on your LAN** (e.g. `npm run dev` or `npm run build && npm run start` on desktop, then visit `http://192.168.x.x:3000` on your phone). The device sync UI warns when this applies.
 
 ## GitHub Pages deployment
 

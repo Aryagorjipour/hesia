@@ -16,7 +16,7 @@ import { isEncryptedExport } from "@/lib/crypto/export-vault";
 import { confirm } from "@/lib/confirm";
 import { toast } from "@/lib/toast";
 import { NotificationsForm } from "./notifications-form";
-import { DeviceSyncSettingsPanel } from "./device-sync-view";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -187,8 +187,6 @@ export function DataPrivacyView() {
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
       <NotificationsForm />
-
-      <DeviceSyncSettingsPanel />
 
       <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
         <h2 className="text-sm font-medium text-foreground">Your data</h2>

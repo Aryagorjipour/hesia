@@ -89,12 +89,4 @@ export const NAVIGATION_ITEMS: CommandItem[] = [
     href: "/settings/about",
     keywords: ["version", "credits"],
   },
-  {
-    id: "page-settings-sync",
-    type: "page",
-    label: "Device sync",
-    description: "Sync with nearby devices over LAN",
-    href: "/settings/data/sync",
-    keywords: ["p2p", "transfer", "sync", "lan", "share"],
-  },
 ];

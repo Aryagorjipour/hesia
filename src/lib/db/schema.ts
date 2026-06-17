@@ -6,7 +6,7 @@ import type { Category } from "@/types/category";
 import type { WeeklyReport } from "@/types/report";
 import type { ChatSession, ChatMessage } from "@/types/chat";
 import type { AppSettings, UserMemoryEntry } from "@/types/settings";
-import type { SyncTombstone } from "@/types/device-sync";
+import type { SyncTombstone } from "@/types/sync-tombstone";
 
 /**
  * Hesia IndexedDB schema — all app data lives here permanently.
@@ -146,6 +146,42 @@ export class HesiaDB extends Dexie {
         }
         await tx.table("deviceIdentity").clear();
         await tx.table("trustedSenders").clear();
+      });
+
+    this.version(5)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table("settings").get("default");
+        if (!settings) return;
+        const legacy = settings as AppSettings & {
+          deviceSync?: unknown;
+          p2pSync?: unknown;
+        };
+        await tx.table("settings").put({
+          id: legacy.id,
+          onboardingComplete: legacy.onboardingComplete,
+          profile: legacy.profile,
+          zenPreset: legacy.zenPreset,
+          presetWorkspaceConfigs: legacy.presetWorkspaceConfigs,
+          weekStartsOn: legacy.weekStartsOn,
+          theme: legacy.theme,
+          columnNames: legacy.columnNames,
+          aiConfig: legacy.aiConfig,
+          notifications: legacy.notifications,
+          dataDirectoryHint: legacy.dataDirectoryHint,
+          version: legacy.version,
+        });
       });
   }
 }

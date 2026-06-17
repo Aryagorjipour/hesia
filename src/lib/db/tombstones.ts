@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { db } from "@/lib/db/schema";
 import { toISO } from "@/lib/utils/dates";
-import type { SyncTombstone } from "@/types/device-sync";
+import type { SyncTombstone } from "@/types/sync-tombstone";
 
 export async function recordTombstone(
   entityType: SyncTombstone["entityType"],

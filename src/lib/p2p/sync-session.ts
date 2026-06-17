@@ -30,7 +30,6 @@ import {
 import {
   compactSignalFingerprint,
   extractCompactSignal,
-  extractExtraCandidates,
   rebuildSdp,
 } from "@/lib/p2p/sdp-compact";
 import {

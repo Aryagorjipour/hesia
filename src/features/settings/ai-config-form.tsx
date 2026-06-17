@@ -33,8 +33,15 @@ const DEFAULT_CONFIG: AiConfig = {
 };
 
 function configFingerprint(config: AiConfig): string {
-  const { encryptedApiKey: _key, ...rest } = config;
-  return JSON.stringify(rest);
+  return JSON.stringify({
+    providerPreset: config.providerPreset,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    temperature: config.temperature,
+    maxContextWeeks: config.maxContextWeeks,
+    streaming: config.streaming,
+    customSystemPrompt: config.customSystemPrompt,
+  });
 }
 
 export function AiConfigForm() {

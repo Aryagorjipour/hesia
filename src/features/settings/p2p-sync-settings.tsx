@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Smartphone, Monitor, Radio } from "lucide-react";
 import { db } from "@/lib/db/schema";
@@ -16,10 +16,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import type { P2pSyncSettings } from "@/types/p2p-sync";
+import type { AppSettings } from "@/types/settings";
 
-export function P2pSyncSettings() {
-  const settings = useLiveQuery(() => db.settings.get("default"));
-  const p2p = settings?.p2pSync;
+function p2pSyncFingerprint(p2p: P2pSyncSettings | undefined): string {
+  return JSON.stringify({
+    enabled: p2p?.enabled ?? false,
+    deviceLabel: p2p?.deviceLabel ?? "",
+    usePublicTurn: p2p?.usePublicTurn ?? false,
+    turnUrls: p2p?.turnUrls ?? "",
+    turnUsername: p2p?.turnUsername ?? "",
+    turnCredential: p2p?.turnCredential ?? "",
+    hasPassword: Boolean(p2p?.passwordVerifier),
+  });
+}
+
+function P2pSyncSettingsForm({ settings }: { settings: AppSettings }) {
+  const p2p = settings.p2pSync;
   const enabled = p2p?.enabled ?? false;
   const hasPassword = Boolean(p2p?.passwordVerifier);
 
@@ -31,16 +44,6 @@ export function P2pSyncSettings() {
   const [turnUsername, setTurnUsername] = useState(p2p?.turnUsername ?? "");
   const [turnCredential, setTurnCredential] = useState(p2p?.turnCredential ?? "");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (settings === undefined) return;
-    const sync = settings.p2pSync;
-    setDeviceLabel(sync?.deviceLabel ?? "");
-    setUsePublicTurn(sync?.usePublicTurn ?? false);
-    setTurnUrls(sync?.turnUrls ?? "");
-    setTurnUsername(sync?.turnUsername ?? "");
-    setTurnCredential(sync?.turnCredential ?? "");
-  }, [settings]);
 
   async function updateP2p(patch: Partial<NonNullable<typeof p2p>>) {
     const current = (await db.settings.get("default"))!;
@@ -313,5 +316,24 @@ export function P2pSyncSettings() {
         <P2pTrustedDevices />
       </div>
     </div>
+  );
+}
+
+export function P2pSyncSettings() {
+  const settings = useLiveQuery(() => db.settings.get("default"));
+
+  if (settings === undefined) {
+    return (
+      <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+        <div className="h-40 animate-pulse rounded-xl bg-muted/30" />
+      </div>
+    );
+  }
+
+  return (
+    <P2pSyncSettingsForm
+      key={p2pSyncFingerprint(settings.p2pSync)}
+      settings={settings}
+    />
   );
 }

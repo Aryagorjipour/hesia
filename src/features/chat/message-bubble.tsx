@@ -15,9 +15,14 @@ import { cn } from "@/lib/utils/cn";
 interface MessageBubbleProps {
   message: ChatMessage;
   isStreaming?: boolean;
+  highlighted?: boolean;
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isStreaming,
+  highlighted,
+}: MessageBubbleProps) {
   const isUser = message.role === "user";
   const raw = message.content;
   const displayContent = isUser
@@ -27,9 +32,11 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
 
   return (
     <div
+      data-message-id={message.id}
       className={cn(
-        "flex gap-3",
+        "flex gap-3 rounded-2xl transition-colors duration-500",
         isUser ? "flex-row-reverse" : "flex-row",
+        highlighted && "bg-accent/10 ring-2 ring-accent/30",
       )}
     >
       <div

@@ -14,6 +14,7 @@ interface ChatInputProps {
   streaming?: boolean;
   offline?: boolean;
   placeholder?: string;
+  initialDraft?: string | null;
 }
 
 export function ChatInput({
@@ -23,8 +24,9 @@ export function ChatInput({
   streaming,
   offline,
   placeholder = "Ask about your rhythm, patterns, or plans…",
+  initialDraft,
 }: ChatInputProps) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialDraft ?? "");
   const ref = useRef<HTMLTextAreaElement>(null);
   const viewportOffset = useVisualViewportOffset();
 
@@ -63,6 +65,7 @@ export function ChatInput({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          autoFocus={!!initialDraft}
           placeholder={
             offline ? "Offline — connect to send messages" : placeholder
           }

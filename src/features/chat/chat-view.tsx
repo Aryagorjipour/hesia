@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, RotateCcw, Settings } from "lucide-react";
 import { MessageBubble } from "./message-bubble";
 import { ChatInput } from "./chat-input";
 import { QuickActions } from "./quick-actions";
+import { ChatSessionBar } from "./chat-session-bar";
 import { useChatSession } from "./use-chat-session";
 import { useOnlineStatus } from "@/lib/hooks/use-online-status";
+import { useUIStore } from "@/stores/ui-store";
 import { MobilePageHeader } from "@/components/layout/mobile-page-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,7 +17,23 @@ import { EmptyState } from "@/components/ui/empty-state";
 export function ChatView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
+  const pendingChatMessageId = useUIStore((s) => s.pendingChatMessageId);
+  const setPendingChatMessageId = useUIStore((s) => s.setPendingChatMessageId);
+  const pendingChatDraft = useUIStore((s) => s.pendingChatDraft);
+  const setPendingChatDraft = useUIStore((s) => s.setPendingChatDraft);
+  const pendingChatScrollToTop = useUIStore((s) => s.pendingChatScrollToTop);
+  const setPendingChatScrollToTop = useUIStore(
+    (s) => s.setPendingChatScrollToTop,
+  );
+
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(
+    null,
+  );
+
   const {
+    sessionId,
+    sessions,
+    ready,
     messages,
     streamingMessage,
     streaming,
@@ -23,6 +41,9 @@ export function ChatView() {
     sendMessage,
     stopStreaming,
     clearChat,
+    startNewSession,
+    switchSession,
+    removeSession,
   } = useChatSession();
 
   const displayMessages = streamingMessage
@@ -35,7 +56,34 @@ export function ChatView() {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [displayMessages.length, streamingMessage?.content]);
+  }, [displayMessages.length, streamingMessage?.content, sessionId]);
+
+  useEffect(() => {
+    if (!pendingChatScrollToTop || !ready) return;
+    setPendingChatScrollToTop(false);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [pendingChatScrollToTop, ready, setPendingChatScrollToTop]);
+
+  useEffect(() => {
+    if (!pendingChatMessageId || !ready) return;
+
+    const targetId = pendingChatMessageId;
+    setPendingChatMessageId(null);
+
+    const frame = requestAnimationFrame(() => {
+      const node = scrollRef.current?.querySelector(
+        `[data-message-id="${targetId}"]`,
+      );
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlightMessageId(targetId);
+        window.setTimeout(() => setHighlightMessageId(null), 2000);
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [pendingChatMessageId, ready, setPendingChatMessageId]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -72,6 +120,17 @@ export function ChatView() {
           </>
         }
       />
+
+      {aiConfigured && ready && (
+        <ChatSessionBar
+          sessions={sessions}
+          activeSessionId={sessionId}
+          onSelect={switchSession}
+          onNew={() => void startNewSession()}
+          onDelete={(id) => void removeSession(id)}
+          disabled={streaming}
+        />
+      )}
 
       <div
         ref={scrollRef}
@@ -115,6 +174,7 @@ export function ChatView() {
                 key={msg.id}
                 message={msg}
                 isStreaming={msg.id === "streaming" && streaming}
+                highlighted={highlightMessageId === msg.id}
               />
             ))}
           </div>
@@ -132,11 +192,16 @@ export function ChatView() {
 
       {aiConfigured && (
         <ChatInput
-          onSend={(t) => void sendMessage(t)}
+          key={pendingChatDraft ? `draft-${pendingChatDraft.length}` : sessionId ?? "chat"}
+          onSend={(t) => {
+            setPendingChatDraft(null);
+            void sendMessage(t);
+          }}
           onStop={stopStreaming}
           disabled={!aiConfigured}
           offline={chatDisabled}
           streaming={streaming}
+          initialDraft={pendingChatDraft}
         />
       )}
     </div>

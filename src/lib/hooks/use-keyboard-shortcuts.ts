@@ -31,6 +31,7 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers, enabled = true)
         handlers.onQuickCapture();
       }
 
+      // Board-local filter focus; global search is Ctrl/Cmd+K (use-global-shortcuts).
       if (e.key === "/" && handlers.onSearch) {
         e.preventDefault();
         handlers.onSearch();

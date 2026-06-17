@@ -9,11 +9,14 @@ import {
   MessageCircle,
   Settings,
   Tag,
+  Search,
 } from "lucide-react";
 import { HesiaLogo } from "@/components/brand/hesia-logo";
 import { cn } from "@/lib/utils/cn";
 import { db } from "@/lib/db/schema";
 import { useSettingsStore } from "@/stores/settings-store";
+import { useCommandPaletteStore } from "@/stores/command-palette-store";
+import { useModKeyLabel } from "@/lib/hooks/use-mod-key-label";
 import { ZEN_PRESETS } from "@/lib/theme/presets";
 
 const NAV_ITEMS = [
@@ -26,6 +29,8 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const modKey = useModKeyLabel();
+  const openPalette = useCommandPaletteStore((s) => s.openPalette);
   const zenPreset = useSettingsStore((s) => s.zenPreset);
   const preset = ZEN_PRESETS[zenPreset];
   const settings = useLiveQuery(() => db.settings.get("default"));
@@ -44,6 +49,20 @@ export function Sidebar() {
             {username ? `Hi, ${username}` : preset.name}
           </p>
         </div>
+      </div>
+
+      <div className="px-3 pt-2">
+        <button
+          type="button"
+          onClick={openPalette}
+          className="flex w-full items-center gap-3 rounded-2xl border border-border/50 bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-muted/40 hover:text-foreground"
+        >
+          <Search className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+          <span className="flex-1 text-left">Search…</span>
+          <kbd className="rounded-md border border-border/60 bg-background/50 px-1.5 py-0.5 text-[10px] font-medium">
+            {modKey}K
+          </kbd>
+        </button>
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">

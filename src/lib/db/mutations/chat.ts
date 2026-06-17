@@ -1,7 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../schema";
 import { toISO } from "@/lib/utils/dates";
-import type { ChatMessage } from "@/types/chat";
+import type { ChatMessage, ChatSession } from "@/types/chat";
+
+const DEFAULT_SESSION_TITLES = new Set(["Main", "New chat"]);
 
 export async function addChatMessage(
   sessionId: string,
@@ -31,6 +33,76 @@ export async function clearChatSession(sessionId: string): Promise<void> {
   const now = toISO(new Date());
   await db.transaction("rw", db.chatMessages, db.chatSessions, async () => {
     await db.chatMessages.where("sessionId").equals(sessionId).delete();
-    await db.chatSessions.update(sessionId, { updatedAt: now });
+    const session = await db.chatSessions.get(sessionId);
+    if (session) {
+      await db.chatSessions.put({
+        id: session.id,
+        title: session.title,
+        weekStart: session.weekStart,
+        createdAt: session.createdAt,
+        updatedAt: now,
+      });
+    }
   });
+}
+
+export async function createChatSession(
+  title = "New chat",
+): Promise<ChatSession> {
+  const now = toISO(new Date());
+  const session: ChatSession = {
+    id: uuidv4(),
+    title,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await db.chatSessions.put(session);
+  return session;
+}
+
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  const count = await db.chatSessions.count();
+  if (count <= 1) {
+    throw new Error("Cannot delete the last chat session");
+  }
+
+  await db.transaction("rw", db.chatMessages, db.chatSessions, async () => {
+    await db.chatMessages.where("sessionId").equals(sessionId).delete();
+    await db.chatSessions.delete(sessionId);
+  });
+}
+
+export async function updateChatSession(
+  sessionId: string,
+  patch: Partial<
+    Pick<
+      ChatSession,
+      | "title"
+      | "contextSummary"
+      | "compactedBeforeMessageId"
+      | "updatedAt"
+    >
+  >,
+): Promise<void> {
+  await db.chatSessions.update(sessionId, {
+    ...patch,
+    updatedAt: patch.updatedAt ?? toISO(new Date()),
+  });
+}
+
+export async function maybeUpdateSessionTitleFromMessage(
+  sessionId: string,
+  userText: string,
+): Promise<void> {
+  const session = await db.chatSessions.get(sessionId);
+  if (!session) return;
+
+  const title = session.title?.trim();
+  if (title && !DEFAULT_SESSION_TITLES.has(title)) return;
+
+  const next =
+    userText.trim().slice(0, 48) + (userText.trim().length > 48 ? "…" : "");
+  if (!next) return;
+
+  await updateChatSession(sessionId, { title: next });
 }

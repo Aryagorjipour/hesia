@@ -26,10 +26,24 @@ export async function ensureDefaultSettings(): Promise<AppSettings> {
   return DEFAULT_SETTINGS;
 }
 
+/** @deprecated Use ensureDefaultChatSessions */
 export async function ensureMainChatSession(): Promise<string> {
-  const sessions = await db.chatSessions.toArray();
-  const main = sessions.find((s) => s.title === "Main");
-  if (main) return main.id;
+  const { defaultSessionId } = await ensureDefaultChatSessions();
+  return defaultSessionId;
+}
+
+export async function ensureDefaultChatSessions(): Promise<{
+  defaultSessionId: string;
+  sessionIds: string[];
+}> {
+  const sessions = await db.chatSessions.orderBy("updatedAt").reverse().toArray();
+
+  if (sessions.length > 0) {
+    return {
+      defaultSessionId: sessions[0]!.id,
+      sessionIds: sessions.map((s) => s.id),
+    };
+  }
 
   const now = toISO(new Date());
   const id = uuidv4();
@@ -39,7 +53,7 @@ export async function ensureMainChatSession(): Promise<string> {
     createdAt: now,
     updatedAt: now,
   });
-  return id;
+  return { defaultSessionId: id, sessionIds: [id] };
 }
 
 export async function initializeDatabase(): Promise<AppSettings> {

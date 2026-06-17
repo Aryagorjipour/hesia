@@ -4,6 +4,7 @@ import { TaskStatusSchema } from "@/types/task";
 export const AiTaskDraftSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
+  notes: z.string().optional(),
   isPlanned: z.boolean(),
   status: TaskStatusSchema,
   tags: z.array(z.string()).default([]),

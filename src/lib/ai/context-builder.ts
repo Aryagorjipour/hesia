@@ -73,16 +73,32 @@ export async function buildContext(
 
   const stats = aggregateWeekStatsFromAll(allTasks, now, weekStartsOn);
 
+  let sessionSummary = "";
   let chatMessages: { role: string; content: string }[] = [];
   if (options.includeChatHistory !== false && options.sessionId) {
+    const session = await db.chatSessions.get(options.sessionId);
+    sessionSummary = session?.contextSummary?.trim() ?? "";
+
     const msgs = await db.chatMessages
       .where("sessionId")
       .equals(options.sessionId)
       .sortBy("createdAt");
-    chatMessages = msgs.slice(-20).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+
+    let recent = msgs;
+    if (session?.compactedBeforeMessageId) {
+      const idx = msgs.findIndex(
+        (m) => m.id === session.compactedBeforeMessageId,
+      );
+      if (idx >= 0) recent = msgs.slice(idx + 1);
+    }
+
+    chatMessages = recent
+      .slice(-20)
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
   }
 
   const profileSection = settings?.profile?.username
@@ -129,7 +145,10 @@ ${tasksSection || "(No tasks in range)"}
 ## Recent Reflection History
 ${reportsSection}
 
-## Conversation so far (last turns)
+## Earlier conversation summary (this session)
+${sessionSummary || "(No prior summary — fresh thread)"}
+
+## Conversation so far (recent turns)
 ${chatMessages.map((m) => `${m.role}: ${m.content}`).join("\n") || "(New conversation)"}`;
 
   const systemPrompt =

@@ -4,6 +4,10 @@ export const ChatSessionSchema = z.object({
   id: z.string().uuid(),
   title: z.string().optional(),
   weekStart: z.string().optional(),
+  /** Compacted summary of older turns in this session */
+  contextSummary: z.string().optional(),
+  /** Last message id included in contextSummary */
+  compactedBeforeMessageId: z.string().uuid().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

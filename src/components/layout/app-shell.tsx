@@ -5,7 +5,10 @@ import { BottomNav } from "./bottom-nav";
 import { OfflineBanner } from "@/components/pwa/offline-banner";
 import { PwaUpdateBanner } from "@/components/pwa/pwa-update-banner";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { CommandPalette } from "@/components/command-palette/command-palette";
+import { MobileSearchFab } from "./mobile-search-fab";
 import { useReflectionReminder } from "@/lib/hooks/use-reflection-reminder";
+import { useGlobalShortcuts } from "@/lib/hooks/use-global-shortcuts";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -13,6 +16,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   useReflectionReminder();
+  useGlobalShortcuts();
 
   return (
     <div className="flex h-dvh min-h-0 bg-background">
@@ -26,6 +30,8 @@ export function AppShell({ children }: AppShellProps) {
         <BottomNav />
         <InstallPrompt />
       </div>
+      <CommandPalette />
+      <MobileSearchFab />
     </div>
   );
 }

@@ -324,10 +324,7 @@ export async function prepareSenderConnection(
     }
     const answerSdp = rebuildSdp(answer.signal, "answer");
     await peer.applyAnswer(answerSdp);
-    await peer.applyRemoteCandidates([
-      ...offerPacket.signal.candidates,
-      ...answer.signal.candidates,
-    ]);
+    await peer.applyRemoteCandidates(answer.signal.candidates);
 
     if (await peer.waitForConnection(20000)) return {};
 
@@ -486,7 +483,9 @@ export function runSenderTransfer(
       onError: (err) => done({ error: err.message }),
     });
 
-    if (peer.isConnected()) startTransfer();
+    if (peer.isConnected()) {
+      startTransfer();
+    }
   });
 }
 

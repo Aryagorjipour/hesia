@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Smartphone, Monitor, Radio } from "lucide-react";
 import { db } from "@/lib/db/schema";
@@ -31,6 +31,16 @@ export function P2pSyncSettings() {
   const [turnUsername, setTurnUsername] = useState(p2p?.turnUsername ?? "");
   const [turnCredential, setTurnCredential] = useState(p2p?.turnCredential ?? "");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (settings === undefined) return;
+    const sync = settings.p2pSync;
+    setDeviceLabel(sync?.deviceLabel ?? "");
+    setUsePublicTurn(sync?.usePublicTurn ?? false);
+    setTurnUrls(sync?.turnUrls ?? "");
+    setTurnUsername(sync?.turnUsername ?? "");
+    setTurnCredential(sync?.turnCredential ?? "");
+  }, [settings]);
 
   async function updateP2p(patch: Partial<NonNullable<typeof p2p>>) {
     const current = (await db.settings.get("default"))!;
@@ -190,8 +200,15 @@ export function P2pSyncSettings() {
           </label>
           <p className="text-[11px] leading-relaxed text-muted-foreground/80">
             Off by default for same Wi‑Fi / LAN sync (Android + desktop). Turn on
-            only for cross-network sync (e.g. phone on cellular).
+            only for cross-network sync (e.g. phone on cellular). If sync fails
+            with a TURN error, turn this off on both devices and retry.
           </p>
+          {usePublicTurn ? (
+            <p className="text-[11px] text-unplanned">
+              TURN relay is on — disable it for same-Wi‑Fi sync if you see ICE or
+              TURN errors.
+            </p>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="p2p-turn-urls">Custom TURN URLs (optional)</Label>
             <Input

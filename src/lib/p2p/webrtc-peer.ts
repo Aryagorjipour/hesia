@@ -12,8 +12,8 @@ export interface WebRtcPeerOptions {
   onError?: (error: Error) => void;
 }
 
-const ICE_GATHER_TIMEOUT_MS = 6000;
-const CONNECTION_TIMEOUT_MS = 20000;
+const ICE_GATHER_TIMEOUT_MS = 12_000;
+const CONNECTION_TIMEOUT_MS = 30_000;
 
 export class WebRtcPeer {
   private pc: RTCPeerConnection;
@@ -21,9 +21,15 @@ export class WebRtcPeer {
   private handlers: WebRtcPeerOptions;
   private pendingCandidates: string[] = [];
   private appliedCandidates = new Set<string>();
+  private turnEnabled: boolean;
 
-  private constructor(options: WebRtcPeerOptions, pcConfig: RTCConfiguration) {
+  private constructor(
+    options: WebRtcPeerOptions,
+    pcConfig: RTCConfiguration,
+    turnEnabled: boolean,
+  ) {
     this.handlers = options;
+    this.turnEnabled = turnEnabled;
     this.pc = new RTCPeerConnection(pcConfig);
 
     this.pc.onicecandidate = (event) => {
@@ -37,11 +43,7 @@ export class WebRtcPeer {
     this.pc.oniceconnectionstatechange = () => {
       const state = this.pc.iceConnectionState;
       if (state === "failed") {
-        this.handlers.onError?.(
-          new Error(
-            "WebRTC connection failed — use the same Wi‑Fi, or enable TURN relay in Settings",
-          ),
-        );
+        this.handlers.onError?.(new Error(this.iceFailureMessage()));
       }
     };
 
@@ -57,16 +59,24 @@ export class WebRtcPeer {
   }
 
   static async create(options: WebRtcPeerOptions): Promise<WebRtcPeer> {
+    const turnEnabled = isTurnEnabled(options.p2pSettings);
     const servers = await buildIceServers(options.p2pSettings);
     const pcConfig: RTCConfiguration = {
       iceServers: servers,
-      iceCandidatePoolSize: 2,
       bundlePolicy: "max-bundle",
     };
-    if (isTurnEnabled(options.p2pSettings)) {
+    if (turnEnabled) {
+      pcConfig.iceCandidatePoolSize = 2;
       pcConfig.iceTransportPolicy = "all";
     }
-    return new WebRtcPeer(options, pcConfig);
+    return new WebRtcPeer(options, pcConfig, turnEnabled);
+  }
+
+  private iceFailureMessage(): string {
+    if (this.turnEnabled) {
+      return "WebRTC connection failed — TURN relay could not connect. Try same Wi‑Fi with TURN off, or check your TURN settings.";
+    }
+    return "WebRTC connection failed — keep both devices on the same Wi‑Fi, disable TURN relay in Settings, and retry.";
   }
 
   setHandlers(handlers: Partial<WebRtcPeerOptions>) {
@@ -142,13 +152,26 @@ export class WebRtcPeer {
     if (this.isConnected()) return true;
 
     return new Promise((resolve) => {
-      const timeout = window.setTimeout(() => resolve(false), timeoutMs);
+      const timeout = window.setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, timeoutMs);
+      const cleanup = () => {
+        this.pc.removeEventListener("connectionstatechange", check);
+        this.pc.removeEventListener("iceconnectionstatechange", check);
+      };
       const check = () => {
+        const ice = this.pc.iceConnectionState;
         if (this.isConnected()) {
           window.clearTimeout(timeout);
-          this.pc.removeEventListener("connectionstatechange", check);
-          this.pc.removeEventListener("iceconnectionstatechange", check);
+          cleanup();
           resolve(true);
+          return;
+        }
+        if (ice === "failed" || ice === "closed") {
+          window.clearTimeout(timeout);
+          cleanup();
+          resolve(false);
         }
       };
       this.pc.addEventListener("connectionstatechange", check);
@@ -159,12 +182,7 @@ export class WebRtcPeer {
 
   isConnected(): boolean {
     const ice = this.pc.iceConnectionState;
-    const conn = this.pc.connectionState;
-    return (
-      ice === "connected" ||
-      ice === "completed" ||
-      conn === "connected"
-    );
+    return ice === "connected" || ice === "completed";
   }
 
   getPendingCandidates(): string[] {

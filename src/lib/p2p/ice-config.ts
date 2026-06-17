@@ -1,10 +1,5 @@
 import type { P2pSyncSettings } from "@/types/p2p-sync";
 
-/** Single STUN — enough for same-LAN and keeps ICE discovery fast. */
-const LAN_STUN: RTCIceServer = {
-  urls: "stun:stun.l.google.com:19302",
-};
-
 const STATIC_TURN_HOST = "staticauth.openrelay.metered.ca";
 const STATIC_TURN_SECRET = "openrelayprojectsecret";
 
@@ -29,7 +24,11 @@ export async function buildPublicTurnServer(): Promise<RTCIceServer> {
     new TextEncoder().encode(username),
   );
   return {
-    urls: `turn:${STATIC_TURN_HOST}:80?transport=udp`,
+    urls: [
+      `turn:${STATIC_TURN_HOST}:80?transport=udp`,
+      `turn:${STATIC_TURN_HOST}:443?transport=tcp`,
+      `turns:${STATIC_TURN_HOST}:443?transport=tcp`,
+    ],
     username,
     credential: toBase64(new Uint8Array(signature)),
   };
@@ -38,27 +37,28 @@ export async function buildPublicTurnServer(): Promise<RTCIceServer> {
 export async function buildIceServers(
   settings?: P2pSyncSettings,
 ): Promise<RTCIceServer[]> {
-  const servers: RTCIceServer[] = [LAN_STUN];
-
   const customUrls = settings?.turnUrls
     ?.split(",")
     .map((url) => url.trim())
     .filter(Boolean);
 
   if (customUrls && customUrls.length > 0) {
-    servers.push({
-      urls: customUrls.length === 1 ? customUrls[0]! : customUrls,
-      username: settings?.turnUsername || undefined,
-      credential: settings?.turnCredential || undefined,
-    });
-    return servers;
+    return [
+      {
+        urls: customUrls.length === 1 ? customUrls[0]! : customUrls,
+        username: settings?.turnUsername || undefined,
+        credential: settings?.turnCredential || undefined,
+      },
+    ];
   }
 
   if (settings?.usePublicTurn === true) {
-    servers.push(await buildPublicTurnServer());
+    return [await buildPublicTurnServer()];
   }
 
-  return servers;
+  // Same-LAN sync: host candidates only. STUN/TURN are not needed on the same
+  // Wi‑Fi and broken relay servers cause Chrome's "TURN server appears broken".
+  return [];
 }
 
 export function isTurnEnabled(settings?: P2pSyncSettings): boolean {

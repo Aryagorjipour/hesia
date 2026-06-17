@@ -12,9 +12,10 @@ export type CompactSignal = z.infer<typeof CompactSignalSchema>;
 
 export type SdpRole = "offer" | "answer";
 
-const MAX_HOST_UDP = 6;
+const MAX_HOST_UDP = 8;
 const MAX_SRFLX_UDP = 2;
-const MAX_RELAY_UDP = 1;
+const MAX_RELAY_UDP = 2;
+const MAX_PRFLX_UDP = 2;
 
 interface ParsedCandidate {
   line: string;
@@ -94,8 +95,13 @@ function filterCandidates(lines: string[], includeRelay = false): string[] {
         .slice(0, MAX_RELAY_UDP)
     : [];
 
+  const prflx = parsed
+    .filter((c) => c.type === "prflx")
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, MAX_PRFLX_UDP);
+
   const selected = new Set(
-    [...hosts, ...srflx, ...relay].map((c) => c.line),
+    [...hosts, ...srflx, ...prflx, ...relay].map((c) => c.line),
   );
   return lines
     .map((line) => parseCandidateLine(line)?.line)

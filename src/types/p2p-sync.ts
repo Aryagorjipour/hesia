@@ -138,7 +138,7 @@ export const P2pSyncSettingsSchema = z.object({
     })
     .optional(),
   deviceLabel: z.string().max(32).optional(),
-  usePublicTurn: z.boolean().default(true),
+  usePublicTurn: z.boolean().default(false),
   turnUrls: z.string().max(240).optional(),
   turnUsername: z.string().max(80).optional(),
   turnCredential: z.string().max(80).optional(),

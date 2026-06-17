@@ -1,4 +1,4 @@
-import { buildIceServers } from "@/lib/p2p/ice-config";
+import { buildIceServers, isTurnEnabled } from "@/lib/p2p/ice-config";
 import type { P2pSyncSettings } from "@/types/p2p-sync";
 
 export type PeerRole = "sender" | "receiver";
@@ -12,8 +12,8 @@ export interface WebRtcPeerOptions {
   onError?: (error: Error) => void;
 }
 
-const ICE_GATHER_TIMEOUT_MS = 3000;
-const CONNECTION_TIMEOUT_MS = 12000;
+const ICE_GATHER_TIMEOUT_MS = 6000;
+const CONNECTION_TIMEOUT_MS = 20000;
 
 export class WebRtcPeer {
   private pc: RTCPeerConnection;
@@ -21,12 +21,15 @@ export class WebRtcPeer {
   private handlers: WebRtcPeerOptions;
   private pendingCandidates: string[] = [];
   private appliedCandidates = new Set<string>();
+  private p2pSettings?: P2pSyncSettings;
 
-  constructor(options: WebRtcPeerOptions) {
+  private constructor(options: WebRtcPeerOptions) {
     this.handlers = options;
+    this.p2pSettings = options.p2pSettings;
     this.pc = new RTCPeerConnection({
-      iceServers: buildIceServers(options.p2pSettings),
-      iceCandidatePoolSize: 0,
+      iceServers: [],
+      iceCandidatePoolSize: 2,
+      bundlePolicy: "max-bundle",
     });
 
     this.pc.onicecandidate = (event) => {
@@ -39,10 +42,10 @@ export class WebRtcPeer {
 
     this.pc.oniceconnectionstatechange = () => {
       const state = this.pc.iceConnectionState;
-      if (state === "failed" || state === "disconnected") {
+      if (state === "failed") {
         this.handlers.onError?.(
           new Error(
-            "WebRTC connection failed — try same Wi‑Fi, enable TURN, or scan the ICE patch QR",
+            "WebRTC connection failed — use the same Wi‑Fi, or enable TURN relay in Settings",
           ),
         );
       }
@@ -57,6 +60,21 @@ export class WebRtcPeer {
         this.bindChannel(event.channel);
       };
     }
+  }
+
+  static async create(options: WebRtcPeerOptions): Promise<WebRtcPeer> {
+    const peer = new WebRtcPeer(options);
+    await peer.initIceServers();
+    return peer;
+  }
+
+  private async initIceServers() {
+    const servers = await buildIceServers(this.p2pSettings);
+    const config: RTCConfiguration = { iceServers: servers };
+    if (isTurnEnabled(this.p2pSettings)) {
+      config.iceTransportPolicy = "all";
+    }
+    this.pc.setConfiguration(config);
   }
 
   setHandlers(handlers: Partial<WebRtcPeerOptions>) {
@@ -106,7 +124,7 @@ export class WebRtcPeer {
         err instanceof Error ? err.message : "WebRTC is unavailable";
       if (message.includes("operation-specific")) {
         throw new Error(
-          "WebRTC failed on this device. Use Safari or Chrome, avoid Private Browsing, and allow local network access.",
+          "WebRTC failed on this device. Use Chrome, avoid Private Browsing, and allow local network access.",
         );
       }
       throw err instanceof Error ? err : new Error(message);
@@ -163,18 +181,35 @@ export class WebRtcPeer {
 
   async applyRemoteCandidates(candidates: string[]): Promise<void> {
     for (const candidate of candidates) {
-      if (this.appliedCandidates.has(candidate)) continue;
-      try {
-        await this.pc.addIceCandidate({
-          candidate,
-          sdpMid: "0",
-          sdpMLineIndex: 0,
-        });
-        this.appliedCandidates.add(candidate);
-      } catch {
-        // ignore candidates that arrive after negotiation completes
+      if (!candidate.trim() || this.appliedCandidates.has(candidate)) continue;
+
+      const attempts: RTCIceCandidateInit[] = [
+        { candidate },
+        { candidate, sdpMid: "0", sdpMLineIndex: 0 },
+      ];
+
+      let applied = false;
+      for (const init of attempts) {
+        try {
+          await this.pc.addIceCandidate(init);
+          this.appliedCandidates.add(candidate);
+          applied = true;
+          break;
+        } catch {
+          // try next init shape
+        }
+      }
+
+      if (!applied) {
+        // candidate may already be redundant after gathering completed
       }
     }
+  }
+
+  async refreshLocalCandidates(): Promise<void> {
+    if (typeof this.pc.restartIce !== "function") return;
+    this.pc.restartIce();
+    await this.waitForIceGathering();
   }
 
   send(data: string): void {

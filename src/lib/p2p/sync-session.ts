@@ -41,6 +41,7 @@ import {
   SyncChannel,
   type SyncChannelCrypto,
 } from "@/lib/p2p/sync-channel";
+import { isTurnEnabled } from "@/lib/p2p/ice-config";
 import { WebRtcPeer } from "@/lib/p2p/webrtc-peer";
 import type { AnswerPacket, IcePatchPacket, OfferPacket } from "@/types/p2p-sync";
 import type { P2pExportBundle } from "@/lib/p2p/sync-export";
@@ -86,9 +87,11 @@ export async function buildOfferPacket(
   const expiresAt = createSessionExpiry();
   const senderEphemeral = await generateEphemeralKeyPair();
 
-  const peer = new WebRtcPeer({ role: "sender", p2pSettings });
+  const peer = await WebRtcPeer.create({ role: "sender", p2pSettings });
   const sdp = await peer.createOffer();
-  const signal = extractCompactSignal(sdp, "offer");
+  const signal = extractCompactSignal(sdp, "offer", {
+    includeRelay: isTurnEnabled(p2pSettings),
+  });
 
   const signature = await signPayload(identity, password, {
     sessionId,
@@ -180,10 +183,12 @@ export async function buildAnswerPacket(
 
   await assertSyncPassword(password);
   const identity = await ensureDeviceIdentity(password);
-  const peer = new WebRtcPeer({ role: "receiver", p2pSettings });
+  const peer = await WebRtcPeer.create({ role: "receiver", p2pSettings });
   const offerSdp = rebuildSdp(offer.signal, "offer");
   const answerSdp = await peer.applyOfferAndCreateAnswer(offerSdp);
-  const signal = extractCompactSignal(answerSdp, "answer");
+  const signal = extractCompactSignal(answerSdp, "answer", {
+    includeRelay: isTurnEnabled(p2pSettings),
+  });
   const expiresAt = createSessionExpiry();
   const trustLevel = trusted ? "trusted" : "password";
   const receiverEphemeral =
@@ -262,6 +267,7 @@ export async function applyIcePatch(
     throw new Error("ICE patch session mismatch");
   }
   await peer.applyRemoteCandidates(patch.candidates);
+  await peer.refreshLocalCandidates();
 }
 
 async function createSenderCrypto(
@@ -318,9 +324,14 @@ export async function prepareSenderConnection(
     }
     const answerSdp = rebuildSdp(answer.signal, "answer");
     await peer.applyAnswer(answerSdp);
-    await peer.applyRemoteCandidates(extractExtraCandidates(answerSdp));
+    await peer.applyRemoteCandidates([
+      ...offerPacket.signal.candidates,
+      ...answer.signal.candidates,
+    ]);
 
-    if (await peer.waitForConnection(12000)) return {};
+    if (await peer.waitForConnection(20000)) return {};
+
+    await peer.refreshLocalCandidates();
 
     const patch = await buildIcePatchPacket(
       peer,
@@ -345,10 +356,11 @@ export async function prepareReceiverConnection(
 ): Promise<SessionResult> {
   const { peer, offerPacket, packet: answerPacket } = state;
   try {
-    const offerSdp = rebuildSdp(offerPacket.signal, "offer");
-    await peer.applyRemoteCandidates(extractExtraCandidates(offerSdp));
+    await peer.applyRemoteCandidates(offerPacket.signal.candidates);
 
-    if (await peer.waitForConnection(12000)) return {};
+    if (await peer.waitForConnection(20000)) return {};
+
+    await peer.refreshLocalCandidates();
 
     const patch = await buildIcePatchPacket(
       peer,

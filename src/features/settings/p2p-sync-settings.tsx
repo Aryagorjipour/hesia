@@ -26,7 +26,7 @@ export function P2pSyncSettings() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [deviceLabel, setDeviceLabel] = useState(p2p?.deviceLabel ?? "");
-  const [usePublicTurn, setUsePublicTurn] = useState(p2p?.usePublicTurn ?? true);
+  const [usePublicTurn, setUsePublicTurn] = useState(p2p?.usePublicTurn ?? false);
   const [turnUrls, setTurnUrls] = useState(p2p?.turnUrls ?? "");
   const [turnUsername, setTurnUsername] = useState(p2p?.turnUsername ?? "");
   const [turnCredential, setTurnCredential] = useState(p2p?.turnCredential ?? "");
@@ -38,7 +38,7 @@ export function P2pSyncSettings() {
       ...current,
       p2pSync: {
         enabled: current.p2pSync?.enabled ?? false,
-        usePublicTurn: current.p2pSync?.usePublicTurn ?? true,
+        usePublicTurn: current.p2pSync?.usePublicTurn ?? false,
         passwordVerifier: current.p2pSync?.passwordVerifier,
         deviceLabel: current.p2pSync?.deviceLabel,
         turnUrls: current.p2pSync?.turnUrls,
@@ -189,8 +189,8 @@ export function P2pSyncSettings() {
             />
           </label>
           <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-            When direct connection fails, traffic may route through a public relay.
-            Payloads remain encrypted on the data channel.
+            Off by default for same Wi‑Fi / LAN sync (Android + desktop). Turn on
+            only for cross-network sync (e.g. phone on cellular).
           </p>
           <div className="space-y-1.5">
             <Label htmlFor="p2p-turn-urls">Custom TURN URLs (optional)</Label>

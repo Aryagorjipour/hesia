@@ -12,8 +12,9 @@ export type CompactSignal = z.infer<typeof CompactSignalSchema>;
 
 export type SdpRole = "offer" | "answer";
 
-const MAX_HOST_UDP = 4;
+const MAX_HOST_UDP = 6;
 const MAX_SRFLX_UDP = 2;
+const MAX_RELAY_UDP = 1;
 
 interface ParsedCandidate {
   line: string;
@@ -59,15 +60,26 @@ function parseCandidateLine(line: string): ParsedCandidate | null {
   };
 }
 
-function filterCandidates(lines: string[]): string[] {
+function hostCandidateScore(line: string): number {
+  const parsed = parseCandidateLine(`a=candidate:${line}`);
+  if (!parsed) return 0;
+  let score = parsed.priority;
+  if (parsed.line.includes(".local")) score -= 1_000_000;
+  if (/\s(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\./.test(parsed.line)) {
+    score += 100_000;
+  }
+  return score;
+}
+
+function filterCandidates(lines: string[], includeRelay = false): string[] {
   const parsed = lines
     .map(parseCandidateLine)
     .filter((c): c is ParsedCandidate => c !== null)
-    .filter((c) => c.protocol === "udp" && c.type !== "relay");
+    .filter((c) => c.protocol === "udp");
 
   const hosts = parsed
     .filter((c) => c.type === "host")
-    .sort((a, b) => b.priority - a.priority)
+    .sort((a, b) => hostCandidateScore(b.line) - hostCandidateScore(a.line))
     .slice(0, MAX_HOST_UDP);
 
   const srflx = parsed
@@ -75,7 +87,16 @@ function filterCandidates(lines: string[]): string[] {
     .sort((a, b) => b.priority - a.priority)
     .slice(0, MAX_SRFLX_UDP);
 
-  const selected = new Set([...hosts, ...srflx].map((c) => c.line));
+  const relay = includeRelay
+    ? parsed
+        .filter((c) => c.type === "relay")
+        .sort((a, b) => b.priority - a.priority)
+        .slice(0, MAX_RELAY_UDP)
+    : [];
+
+  const selected = new Set(
+    [...hosts, ...srflx, ...relay].map((c) => c.line),
+  );
   return lines
     .map((line) => parseCandidateLine(line)?.line)
     .filter((line): line is string => Boolean(line && selected.has(line)));
@@ -88,7 +109,11 @@ function readSdpField(sdp: string, prefix: string): string | undefined {
   return undefined;
 }
 
-export function extractCompactSignal(sdp: string, role: SdpRole): CompactSignal {
+export function extractCompactSignal(
+  sdp: string,
+  role: SdpRole,
+  options?: { includeRelay?: boolean },
+): CompactSignal {
   const ufrag = readSdpField(sdp, "a=ice-ufrag:");
   const pwd = readSdpField(sdp, "a=ice-pwd:");
   const fingerprintRaw = readSdpField(sdp, "a=fingerprint:sha-256 ");
@@ -119,7 +144,7 @@ export function extractCompactSignal(sdp: string, role: SdpRole): CompactSignal 
     pwd,
     fingerprint,
     setup,
-    candidates: filterCandidates(candidateLines),
+    candidates: filterCandidates(candidateLines, options?.includeRelay),
   });
 }
 

@@ -23,6 +23,7 @@ import {
   normalizeRelayUrl,
 } from "@/lib/sync/relay-client";
 import { RelayQr } from "@/components/sync/relay-qr";
+import type { AppSettings } from "@/types/settings";
 import type { RelayPeer, TransferProgress } from "@/types/device-sync";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
@@ -36,8 +37,7 @@ function deviceSyncFingerprint(
   return JSON.stringify(sync ?? {});
 }
 
-function DeviceSyncForm() {
-  const settings = useLiveQuery(() => db.settings.get("default"))!;
+function DeviceSyncForm({ settings }: { settings: AppSettings }) {
   const sync = settings.deviceSync;
   const hasPassword = Boolean(sync?.passwordVerifier);
 
@@ -462,6 +462,7 @@ export function DeviceSyncView() {
 
   return (
     <DeviceSyncForm
+      settings={settings}
       key={deviceSyncFingerprint({
         deviceLabel: settings.deviceSync?.deviceLabel,
         lastRelayUrl: settings.deviceSync?.lastRelayUrl,

@@ -19,7 +19,8 @@
     "build:pages": "node scripts/build-pages.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/p2p/sdp-compact.test.ts",
+    "sync:relay": "node scripts/hesia-relay.mjs",
+    "test": "node --test scripts/hesia-relay.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "pwa:dev": "set SERWIST_DEV=1&& set NEXT_PUBLIC_SERWIST_DEV=1&& npm run build && npm run start"
   },

@@ -1,5 +1,9 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const repoSlug = process.env.NEXT_PUBLIC_REPO_NAME ?? "hesia";
 const isGithubPages = process.env.GITHUB_PAGES === "true";
@@ -14,6 +18,7 @@ const withSerwist = withSerwistInit({
 });
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: projectRoot,
   reactStrictMode: true,
   ...(isGithubPages
     ? { output: "export" as const }

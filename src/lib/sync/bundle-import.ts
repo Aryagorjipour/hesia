@@ -3,23 +3,11 @@ import { HesiaExportBundleSchema } from "@/types/export";
 import type { Task } from "@/types/task";
 import type { Tag } from "@/types/tag";
 import type { Category } from "@/types/category";
-import type { P2pExportBundle } from "@/lib/p2p/sync-export";
-import type { SyncTombstone } from "@/types/p2p-sync";
+import type { ChatSession, ChatMessage } from "@/types/chat";
+import type { SyncExportBundle } from "@/lib/sync/bundle-export";
+import type { MergeStats, SyncTombstone } from "@/types/device-sync";
 
-export interface MergeStats {
-  updated: number;
-  skipped: number;
-  deleted: number;
-}
-
-function recordUpdatedAt(value?: string): string | undefined {
-  return value;
-}
-
-function isNewer(
-  incoming?: string,
-  existing?: string,
-): boolean {
+function isNewer(incoming?: string, existing?: string): boolean {
   if (!incoming) return true;
   if (!existing) return true;
   return Date.parse(incoming) >= Date.parse(existing);
@@ -35,8 +23,7 @@ async function mergeTasks(
   );
 
   for (const key of tombstoned) {
-    const existing = await db.tasks.get(key);
-    if (existing) {
+    if (await db.tasks.get(key)) {
       await db.tasks.delete(key);
       stats.deleted += 1;
     }
@@ -45,11 +32,17 @@ async function mergeTasks(
   for (const task of incoming) {
     if (tombstoned.has(task.id)) continue;
     const existing = await db.tasks.get(task.id);
-    if (existing && !isNewer(task.updatedAt ?? task.createdAt, existing.updatedAt ?? existing.createdAt)) {
+    if (
+      existing &&
+      !isNewer(task.updatedAt ?? task.createdAt, existing.updatedAt ?? existing.createdAt)
+    ) {
       stats.skipped += 1;
       continue;
     }
-    await db.tasks.put({ ...task, updatedAt: recordUpdatedAt(task.updatedAt) ?? task.createdAt });
+    await db.tasks.put({
+      ...task,
+      updatedAt: task.updatedAt ?? task.createdAt,
+    });
     stats.updated += 1;
   }
 }
@@ -88,7 +81,9 @@ async function mergeCategories(
   stats: MergeStats,
 ) {
   const tombstoned = new Set(
-    tombstones.filter((t) => t.entityType === "category").map((t) => t.entityKey),
+    tombstones
+      .filter((t) => t.entityType === "category")
+      .map((t) => t.entityKey),
   );
 
   for (const key of tombstoned) {
@@ -110,7 +105,33 @@ async function mergeCategories(
   }
 }
 
-async function mergeSettings(bundle: P2pExportBundle) {
+async function mergeChat(
+  sessions: ChatSession[],
+  messages: ChatMessage[],
+  stats: MergeStats,
+) {
+  for (const session of sessions) {
+    const existing = await db.chatSessions.get(session.id);
+    if (!existing || isNewer(session.updatedAt, existing.updatedAt)) {
+      await db.chatSessions.put(session);
+      stats.updated += 1;
+    } else {
+      stats.skipped += 1;
+    }
+  }
+
+  for (const message of messages) {
+    const existing = await db.chatMessages.get(message.id);
+    if (!existing || isNewer(message.createdAt, existing.createdAt)) {
+      await db.chatMessages.put(message);
+      stats.updated += 1;
+    } else {
+      stats.skipped += 1;
+    }
+  }
+}
+
+async function mergeSettings(bundle: SyncExportBundle) {
   const current = await db.settings.get("default");
   if (!current) return;
   const incoming = bundle.settings;
@@ -126,7 +147,7 @@ async function mergeSettings(bundle: P2pExportBundle) {
   });
 }
 
-export async function mergeP2pBundle(bundle: P2pExportBundle): Promise<MergeStats> {
+export async function mergeSyncBundle(bundle: SyncExportBundle): Promise<MergeStats> {
   const parsed = HesiaExportBundleSchema.safeParse(bundle);
   if (!parsed.success) throw new Error("Invalid sync bundle");
 
@@ -150,10 +171,14 @@ export async function mergeP2pBundle(bundle: P2pExportBundle): Promise<MergeStat
       await mergeTasks(bundle.tasks, tombstones, stats);
       await mergeTags(bundle.tags, tombstones, stats);
       await mergeCategories(bundle.categories, tombstones, stats);
+      await mergeChat(bundle.chatSessions, bundle.chatMessages, stats);
 
       for (const report of bundle.weeklyReports) {
         const existing = await db.weeklyReports.get(report.id);
-        if (!existing || Date.parse(report.generatedAt) >= Date.parse(existing.generatedAt)) {
+        if (
+          !existing ||
+          Date.parse(report.generatedAt) >= Date.parse(existing.generatedAt)
+        ) {
           await db.weeklyReports.put(report);
           stats.updated += 1;
         } else {

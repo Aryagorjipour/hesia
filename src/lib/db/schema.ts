@@ -6,11 +6,7 @@ import type { Category } from "@/types/category";
 import type { WeeklyReport } from "@/types/report";
 import type { ChatSession, ChatMessage } from "@/types/chat";
 import type { AppSettings, UserMemoryEntry } from "@/types/settings";
-import type {
-  DeviceIdentityRecord,
-  SyncTombstone,
-  TrustedSender,
-} from "@/types/p2p-sync";
+import type { SyncTombstone } from "@/types/device-sync";
 
 /**
  * Hesia IndexedDB schema — all app data lives here permanently.
@@ -25,8 +21,6 @@ export class HesiaDB extends Dexie {
   chatMessages!: Table<ChatMessage, string>;
   userMemory!: Table<UserMemoryEntry, string>;
   settings!: Table<AppSettings, string>;
-  deviceIdentity!: Table<DeviceIdentityRecord, string>;
-  trustedSenders!: Table<TrustedSender, string>;
   syncTombstones!: Table<SyncTombstone, string>;
 
   constructor() {
@@ -106,6 +100,52 @@ export class HesiaDB extends Dexie {
           .modify((category: Category) => {
             if (!category.updatedAt) category.updatedAt = now;
           });
+      });
+
+    this.version(4)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table("settings").get("default");
+        if (settings) {
+          const legacy = settings.p2pSync as
+            | {
+                enabled?: boolean;
+                passwordVerifier?: { salt: string; hash: string };
+                deviceLabel?: string;
+                usePublicTurn?: boolean;
+              }
+            | undefined;
+          const trustedRows = await tx.table("trustedSenders").toArray();
+          const trustedDeviceIds = trustedRows.map(
+            (row: { deviceId: string }) => row.deviceId,
+          );
+          await tx.table("settings").put({
+            ...settings,
+            deviceSync: legacy
+              ? {
+                  enabled: legacy.enabled ?? false,
+                  passwordVerifier: legacy.passwordVerifier,
+                  deviceLabel: legacy.deviceLabel,
+                  trustedDeviceIds:
+                    trustedDeviceIds.length > 0 ? trustedDeviceIds : undefined,
+                }
+              : settings.deviceSync,
+            p2pSync: undefined,
+          });
+        }
+        await tx.table("deviceIdentity").clear();
+        await tx.table("trustedSenders").clear();
       });
   }
 }

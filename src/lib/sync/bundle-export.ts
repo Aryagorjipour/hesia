@@ -2,23 +2,24 @@ import { db } from "@/lib/db/schema";
 import { toISO } from "@/lib/utils/dates";
 import type { HesiaExportBundle } from "@/types/export";
 import type { AppSettings } from "@/types/settings";
-import type { SyncTombstone } from "@/types/p2p-sync";
+import type { SyncTombstone } from "@/types/device-sync";
 
-export interface P2pExportBundle extends HesiaExportBundle {
+export interface SyncExportBundle extends HesiaExportBundle {
   tombstones: SyncTombstone[];
 }
 
 function sanitizeSettings(settings: AppSettings): AppSettings {
-  const { aiConfig, ...rest } = settings;
+  const { aiConfig, deviceSync, ...rest } = settings;
   return {
     ...rest,
     aiConfig: aiConfig
       ? { ...aiConfig, encryptedApiKey: undefined }
       : undefined,
+    deviceSync,
   };
 }
 
-export async function collectP2pBundle(): Promise<P2pExportBundle> {
+export async function collectSyncBundle(): Promise<SyncExportBundle> {
   const settings = await db.settings.get("default");
   if (!settings) throw new Error("Settings not found");
 
@@ -37,7 +38,7 @@ export async function collectP2pBundle(): Promise<P2pExportBundle> {
   };
 }
 
-export async function getP2pPreview() {
+export async function getSyncPreview() {
   const [tasks, tags, categories] = await Promise.all([
     db.tasks.count(),
     db.tags.count(),
@@ -52,14 +53,4 @@ export function chunkString(value: string, size = 48_000): string[] {
     chunks.push(value.slice(i, i + size));
   }
   return chunks.length > 0 ? chunks : [""];
-}
-
-export async function sha256Hex(value: string): Promise<string> {
-  const hash = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }

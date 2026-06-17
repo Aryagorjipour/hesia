@@ -1,36 +1,20 @@
-import { toArrayBuffer } from "./buffer";
+import { toArrayBuffer } from "@/lib/crypto/buffer";
+import { deriveSyncKey } from "@/lib/crypto/sync-password";
 
-const ECDH_PARAMS: EcKeyGenParams = {
-  name: "ECDH",
-  namedCurve: "P-256",
-};
-
-export async function generateEphemeralKeyPair(): Promise<CryptoKeyPair> {
-  return crypto.subtle.generateKey(ECDH_PARAMS, true, ["deriveKey"]);
-}
-
-export async function exportPublicKeyJwk(key: CryptoKey): Promise<JsonWebKey> {
-  return crypto.subtle.exportKey("jwk", key);
-}
-
-export async function importEcdhPublicKey(
-  publicKeyJwk: JsonWebKey,
-): Promise<CryptoKey> {
-  return crypto.subtle.importKey("jwk", publicKeyJwk, ECDH_PARAMS, true, []);
-}
-
-export async function deriveTrustedSessionKey(
-  privateKey: CryptoKey,
-  peerPublicKeyJwk: JsonWebKey,
-): Promise<CryptoKey> {
-  const peerPublicKey = await importEcdhPublicKey(peerPublicKeyJwk);
-  return crypto.subtle.deriveKey(
-    { name: "ECDH", public: peerPublicKey },
-    privateKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
+async function deriveChannelSalt(sessionId: string): Promise<Uint8Array> {
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`hesia-sync-channel-v1:${sessionId}`),
   );
+  return new Uint8Array(hash).slice(0, 16);
+}
+
+export async function createChannelKey(
+  password: string,
+  sessionId: string,
+): Promise<CryptoKey> {
+  const salt = await deriveChannelSalt(sessionId);
+  return deriveSyncKey(password, salt);
 }
 
 export async function encryptWithKey(
@@ -63,4 +47,14 @@ export async function decryptWithKey(
     toArrayBuffer(data),
   );
   return new TextDecoder().decode(decrypted);
+}
+
+export async function sha256Hex(value: string): Promise<string> {
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }

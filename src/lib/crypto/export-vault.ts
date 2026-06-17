@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toArrayBuffer } from "./buffer";
 
 const PBKDF2_ITERATIONS = 250_000;
 
@@ -22,13 +23,6 @@ function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 }
 
-function toBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-}
-
 async function deriveKey(
   password: string,
   salt: Uint8Array,
@@ -36,7 +30,7 @@ async function deriveKey(
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(password),
+    toArrayBuffer(encoder.encode(password)),
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -45,7 +39,7 @@ async function deriveKey(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: toBuffer(salt),
+      salt: toArrayBuffer(salt),
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
@@ -65,9 +59,9 @@ export async function encryptExportPayload(
   const key = await deriveKey(password, salt);
   const encoded = new TextEncoder().encode(plaintext);
   const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: toBuffer(iv) },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    encoded,
+    toArrayBuffer(encoded),
   );
 
   return {
@@ -90,9 +84,9 @@ export async function decryptExportPayload(
 
   try {
     const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: toBuffer(iv) },
+      { name: "AES-GCM", iv: toArrayBuffer(iv) },
       key,
-      toBuffer(data),
+      toArrayBuffer(data),
     );
     return new TextDecoder().decode(decrypted);
   } catch {

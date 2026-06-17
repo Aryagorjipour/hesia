@@ -1,14 +1,9 @@
+import { toArrayBuffer } from "./buffer";
+
 const ECDH_PARAMS: EcKeyGenParams = {
   name: "ECDH",
   namedCurve: "P-256",
 };
-
-function toBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-}
 
 export async function generateEphemeralKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(ECDH_PARAMS, true, ["deriveKey"]);
@@ -45,9 +40,9 @@ export async function encryptWithKey(
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plaintext);
   const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: toBuffer(iv) },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    encoded,
+    toArrayBuffer(encoded),
   );
   return {
     iv: btoa(String.fromCharCode(...iv)),
@@ -63,9 +58,9 @@ export async function decryptWithKey(
   const ivBytes = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
   const data = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: toBuffer(ivBytes) },
+    { name: "AES-GCM", iv: toArrayBuffer(ivBytes) },
     key,
-    toBuffer(data),
+    toArrayBuffer(data),
   );
   return new TextDecoder().decode(decrypted);
 }

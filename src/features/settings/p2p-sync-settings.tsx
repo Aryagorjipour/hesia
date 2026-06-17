@@ -6,7 +6,10 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Smartphone, Monitor, Radio } from "lucide-react";
 import { db } from "@/lib/db/schema";
 import { createPasswordVerifier } from "@/lib/crypto/sync-password";
-import { ensureDeviceIdentity } from "@/lib/crypto/device-identity";
+import {
+  ensureDeviceIdentity,
+  resetDeviceIdentity,
+} from "@/lib/crypto/device-identity";
 import { toast } from "@/lib/toast";
 import { P2pTrustedDevices } from "@/features/settings/p2p-trusted-devices";
 import { Button } from "@/components/ui/button";
@@ -255,6 +258,36 @@ export function P2pSyncSettings() {
           </Button>
         </div>
       ) : null}
+
+      <div className="mt-4 rounded-xl border border-border/60 bg-muted/10 p-3">
+        <p className="text-xs text-muted-foreground">
+          If sync fails with a crypto error on your phone, reset the device key
+          and set your sync password again on that device.
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="mt-3"
+          onClick={() => {
+            if (
+              !window.confirm(
+                "Reset this device's P2P key? You will need to set your sync password again and re-trust devices.",
+              )
+            ) {
+              return;
+            }
+            void resetDeviceIdentity().then(() =>
+              toast.success({
+                title: "P2P device key reset",
+                description: "Set your sync password again, then retry sync.",
+              }),
+            );
+          }}
+        >
+          Reset P2P device key
+        </Button>
+      </div>
 
       <div className="mt-5 border-t border-border/60 pt-4">
         <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">

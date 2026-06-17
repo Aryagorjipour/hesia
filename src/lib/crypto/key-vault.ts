@@ -1,3 +1,5 @@
+import { toArrayBuffer } from "./buffer";
+
 const SALT_KEY = "hesia-crypto-salt";
 
 async function getDeviceKey(): Promise<CryptoKey> {
@@ -10,7 +12,7 @@ async function getDeviceKey(): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(`${salt}-hesia-v1`),
+    toArrayBuffer(encoder.encode(`${salt}-hesia-v1`)),
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -19,7 +21,7 @@ async function getDeviceKey(): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: encoder.encode(salt),
+      salt: toArrayBuffer(encoder.encode(salt)),
       iterations: 100000,
       hash: "SHA-256",
     },
@@ -35,9 +37,9 @@ export async function encryptApiKey(plainKey: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encoded = new TextEncoder().encode(plainKey);
   const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    encoded,
+    toArrayBuffer(encoded),
   );
   const combined = new Uint8Array(iv.length + cipher.byteLength);
   combined.set(iv);
@@ -51,9 +53,9 @@ export async function decryptApiKey(encrypted: string): Promise<string> {
   const iv = combined.slice(0, 12);
   const data = combined.slice(12);
   const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    data,
+    toArrayBuffer(data),
   );
   return new TextDecoder().decode(decrypted);
 }

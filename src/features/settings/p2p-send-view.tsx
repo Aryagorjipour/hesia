@@ -14,6 +14,7 @@ import {
   runSenderTransfer,
   type SenderSessionState,
 } from "@/lib/p2p/sync-session";
+import { verifyPassword } from "@/lib/crypto/sync-password";
 import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 
@@ -58,6 +59,20 @@ export function P2pSendView() {
       const entered = window.prompt("Enter your sync password to start sending:");
       if (!entered) return;
       passwordRef.current = entered;
+    }
+
+    const passwordOk = await verifyPassword(
+      passwordRef.current,
+      p2p.passwordVerifier!,
+    );
+    if (!passwordOk) {
+      passwordRef.current = "";
+      toast.error({
+        title: "Wrong sync password",
+        description:
+          "The password you entered does not match. Use the same password you set in Settings → Data & Privacy.",
+      });
+      return;
     }
 
     try {

@@ -93,13 +93,24 @@ export class WebRtcPeer {
   }
 
   async createOffer(): Promise<string> {
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    await this.waitForIceGathering();
-    if (!this.pc.localDescription?.sdp) {
-      throw new Error("Failed to create WebRTC offer");
+    try {
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
+      await this.waitForIceGathering();
+      if (!this.pc.localDescription?.sdp) {
+        throw new Error("Failed to create WebRTC offer");
+      }
+      return this.pc.localDescription.sdp;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "WebRTC is unavailable";
+      if (message.includes("operation-specific")) {
+        throw new Error(
+          "WebRTC failed on this device. Use Safari or Chrome, avoid Private Browsing, and allow local network access.",
+        );
+      }
+      throw err instanceof Error ? err : new Error(message);
     }
-    return this.pc.localDescription.sdp;
   }
 
   async applyOfferAndCreateAnswer(offerSdp: string): Promise<string> {

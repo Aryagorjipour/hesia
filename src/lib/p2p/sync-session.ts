@@ -66,10 +66,19 @@ async function loadP2pSettings(): Promise<P2pSyncSettings | undefined> {
   return settings?.p2pSync;
 }
 
+async function assertSyncPassword(password: string): Promise<void> {
+  const settings = await db.settings.get("default");
+  const verifier = settings?.p2pSync?.passwordVerifier;
+  if (!verifier) throw new Error("Sync password is not configured");
+  const ok = await verifyPassword(password, verifier);
+  if (!ok) throw new Error("Wrong sync password");
+}
+
 export async function buildOfferPacket(
   password: string,
   deviceLabel: string,
 ): Promise<SenderSessionState> {
+  await assertSyncPassword(password);
   const p2pSettings = await loadP2pSettings();
   const identity = await ensureDeviceIdentity(password);
   const preview = await getP2pPreview();
@@ -169,6 +178,7 @@ export async function buildAnswerPacket(
     if (!ok) throw new Error("Incorrect sync password");
   }
 
+  await assertSyncPassword(password);
   const identity = await ensureDeviceIdentity(password);
   const peer = new WebRtcPeer({ role: "receiver", p2pSettings });
   const offerSdp = rebuildSdp(offer.signal, "offer");

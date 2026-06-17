@@ -1,6 +1,11 @@
 import { db } from "@/lib/db/schema";
 import type { DeviceIdentityRecord } from "@/types/p2p-sync";
 import { deriveSyncKey } from "@/lib/crypto/sync-password";
+import {
+  formatCryptoError,
+  isCryptoOperationError,
+  toArrayBuffer,
+} from "@/lib/crypto/buffer";
 
 const ECDSA_PARAMS: EcKeyGenParams = {
   name: "ECDSA",
@@ -20,36 +25,37 @@ function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 }
 
-function toBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-}
-
 export async function computeDeviceId(publicKeyJwk: JsonWebKey): Promise<string> {
   const encoded = new TextEncoder().encode(JSON.stringify(publicKeyJwk));
-  const hash = await crypto.subtle.digest("SHA-256", encoded);
+  const hash = await crypto.subtle.digest("SHA-256", toArrayBuffer(encoded));
   return Array.from(new Uint8Array(hash))
     .slice(0, 6)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-async function encryptPrivateKey(
-  privateKeyJwk: JsonWebKey,
+interface EncryptedPrivateKeyPayload {
+  format: "pkcs8-v1" | "jwk-v0";
+  salt: string;
+  iv: string;
+  ciphertext: string;
+}
+
+async function encryptPrivateKeyBytes(
+  privateKeyBytes: Uint8Array,
   password: string,
+  format: EncryptedPrivateKeyPayload["format"],
 ): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveSyncKey(password, salt);
-  const plaintext = new TextEncoder().encode(JSON.stringify(privateKeyJwk));
   const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: toBuffer(iv) },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    plaintext,
+    toArrayBuffer(privateKeyBytes),
   );
-  const payload = {
+  const payload: EncryptedPrivateKeyPayload = {
+    format,
     salt: toBase64(salt),
     iv: toBase64(iv),
     ciphertext: toBase64(new Uint8Array(cipher)),
@@ -57,22 +63,32 @@ async function encryptPrivateKey(
   return JSON.stringify(payload);
 }
 
-async function decryptPrivateKey(
+async function decryptPrivateKeyBytes(
   encrypted: string,
   password: string,
-): Promise<JsonWebKey> {
-  const payload = JSON.parse(encrypted) as {
-    salt: string;
-    iv: string;
-    ciphertext: string;
-  };
+): Promise<{ bytes: Uint8Array; format: EncryptedPrivateKeyPayload["format"] }> {
+  const payload = JSON.parse(encrypted) as EncryptedPrivateKeyPayload;
   const key = await deriveSyncKey(password, fromBase64(payload.salt));
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: toBuffer(fromBase64(payload.iv)) },
-    key,
-    toBuffer(fromBase64(payload.ciphertext)),
-  );
-  return JSON.parse(new TextDecoder().decode(decrypted)) as JsonWebKey;
+  try {
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: toArrayBuffer(fromBase64(payload.iv)) },
+      key,
+      toArrayBuffer(fromBase64(payload.ciphertext)),
+    );
+    return {
+      bytes: new Uint8Array(decrypted),
+      format: payload.format ?? "jwk-v0",
+    };
+  } catch (err) {
+    if (isCryptoOperationError(err)) {
+      throw new Error("Wrong sync password");
+    }
+    throw err;
+  }
+}
+
+export async function resetDeviceIdentity(): Promise<void> {
+  await db.deviceIdentity.delete("local");
 }
 
 export async function ensureDeviceIdentity(
@@ -81,22 +97,34 @@ export async function ensureDeviceIdentity(
   const existing = await db.deviceIdentity.get("local");
   if (existing) return existing;
 
-  const keyPair = await crypto.subtle.generateKey(ECDSA_PARAMS, true, [
-    "sign",
-    "verify",
-  ]);
-  const publicKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
-  const privateKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
-  const deviceId = await computeDeviceId(publicKeyJwk);
-  const record: DeviceIdentityRecord = {
-    id: "local",
-    deviceId,
-    publicKeyJwk,
-    encryptedPrivateKey: await encryptPrivateKey(privateKeyJwk, password),
-    createdAt: new Date().toISOString(),
-  };
-  await db.deviceIdentity.put(record);
-  return record;
+  try {
+    const keyPair = await crypto.subtle.generateKey(ECDSA_PARAMS, true, [
+      "sign",
+      "verify",
+    ]);
+    const publicKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+    const privateKeyPkcs8 = new Uint8Array(
+      await crypto.subtle.exportKey("pkcs8", keyPair.privateKey),
+    );
+    const deviceId = await computeDeviceId(publicKeyJwk);
+    const record: DeviceIdentityRecord = {
+      id: "local",
+      deviceId,
+      publicKeyJwk,
+      encryptedPrivateKey: await encryptPrivateKeyBytes(
+        privateKeyPkcs8,
+        password,
+        "pkcs8-v1",
+      ),
+      createdAt: new Date().toISOString(),
+    };
+    await db.deviceIdentity.put(record);
+    return record;
+  } catch (err) {
+    throw new Error(
+      formatCryptoError(err, "Could not create device identity"),
+    );
+  }
 }
 
 export async function getDeviceIdentity(): Promise<DeviceIdentityRecord | undefined> {
@@ -107,17 +135,36 @@ async function importPrivateKey(
   record: DeviceIdentityRecord,
   password: string,
 ): Promise<CryptoKey> {
-  const privateKeyJwk = await decryptPrivateKey(
+  const { bytes, format } = await decryptPrivateKeyBytes(
     record.encryptedPrivateKey,
     password,
   );
-  return crypto.subtle.importKey(
-    "jwk",
-    privateKeyJwk,
-    ECDSA_PARAMS,
-    false,
-    ["sign"],
-  );
+
+  try {
+    if (format === "pkcs8-v1") {
+      return crypto.subtle.importKey(
+        "pkcs8",
+        toArrayBuffer(bytes),
+        ECDSA_PARAMS,
+        false,
+        ["sign"],
+      );
+    }
+
+    const privateKeyJwk = JSON.parse(
+      new TextDecoder().decode(bytes),
+    ) as JsonWebKey;
+    return crypto.subtle.importKey("jwk", privateKeyJwk, ECDSA_PARAMS, false, [
+      "sign",
+    ]);
+  } catch (err) {
+    if (isCryptoOperationError(err)) {
+      throw new Error(
+        "Device key could not be unlocked. Reset P2P sync in Settings, then set your sync password again.",
+      );
+    }
+    throw err;
+  }
 }
 
 export async function importPublicKey(
@@ -140,10 +187,17 @@ export async function signPayload(
   password: string,
   parts: Record<string, string>,
 ): Promise<string> {
-  const privateKey = await importPrivateKey(record, password);
-  const data = new TextEncoder().encode(buildSignaturePayload(parts));
-  const signature = await crypto.subtle.sign(SIGN_PARAMS, privateKey, data);
-  return toBase64(new Uint8Array(signature));
+  try {
+    const privateKey = await importPrivateKey(record, password);
+    const data = toArrayBuffer(
+      new TextEncoder().encode(buildSignaturePayload(parts)),
+    );
+    const signature = await crypto.subtle.sign(SIGN_PARAMS, privateKey, data);
+    return toBase64(new Uint8Array(signature));
+  } catch (err) {
+    if (err instanceof Error && err.message === "Wrong sync password") throw err;
+    throw new Error(formatCryptoError(err, "Could not sign sync packet"));
+  }
 }
 
 export async function verifyPayload(
@@ -153,11 +207,13 @@ export async function verifyPayload(
 ): Promise<boolean> {
   try {
     const publicKey = await importPublicKey(publicKeyJwk);
-    const data = new TextEncoder().encode(buildSignaturePayload(parts));
+    const data = toArrayBuffer(
+      new TextEncoder().encode(buildSignaturePayload(parts)),
+    );
     return crypto.subtle.verify(
       SIGN_PARAMS,
       publicKey,
-      toBuffer(fromBase64(signature)),
+      toArrayBuffer(fromBase64(signature)),
       data,
     );
   } catch {

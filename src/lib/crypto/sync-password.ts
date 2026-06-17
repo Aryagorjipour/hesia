@@ -1,3 +1,5 @@
+import { toArrayBuffer } from "./buffer.ts";
+
 const PBKDF2_ITERATIONS = 250_000;
 
 function toBase64(bytes: Uint8Array): string {
@@ -6,13 +8,6 @@ function toBase64(bytes: Uint8Array): string {
 
 function fromBase64(value: string): Uint8Array {
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-}
-
-function toBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
 }
 
 export interface PasswordVerifier {
@@ -27,7 +22,7 @@ async function deriveVerifierBytes(
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(password),
+    toArrayBuffer(encoder.encode(password)),
     "PBKDF2",
     false,
     ["deriveBits"],
@@ -36,7 +31,7 @@ async function deriveVerifierBytes(
   return crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: toBuffer(salt),
+      salt: toArrayBuffer(salt),
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },
@@ -78,7 +73,7 @@ export async function deriveSyncKey(
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(password),
+    toArrayBuffer(encoder.encode(password)),
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -87,7 +82,7 @@ export async function deriveSyncKey(
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: toBuffer(salt),
+      salt: toArrayBuffer(salt),
       iterations: PBKDF2_ITERATIONS,
       hash: "SHA-256",
     },

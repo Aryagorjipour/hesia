@@ -16,10 +16,19 @@ export interface SyncChannelCrypto {
   key: CryptoKey;
 }
 
+async function deriveChannelSalt(sessionId: string): Promise<Uint8Array> {
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`hesia-p2p-channel-v1:${sessionId}`),
+  );
+  return new Uint8Array(hash).slice(0, 16);
+}
+
 export async function createPasswordChannelCrypto(
   password: string,
+  sessionId: string,
 ): Promise<SyncChannelCrypto> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const salt = await deriveChannelSalt(sessionId);
   const key = await deriveSyncKey(password, salt);
   return { mode: "password", key };
 }

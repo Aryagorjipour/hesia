@@ -21,10 +21,18 @@ import { mergeP2pBundle, type MergeStats } from "@/lib/p2p/sync-import";
 import {
   createSessionExpiry,
   decodeAnswerPacket,
+  decodeIcePatchPacket,
   decodeOfferPacket,
   encodeAnswerPacket,
+  encodeIcePatchPacket,
   encodeOfferPacket,
 } from "@/lib/p2p/signaling-codec";
+import {
+  compactSignalFingerprint,
+  extractCompactSignal,
+  extractExtraCandidates,
+  rebuildSdp,
+} from "@/lib/p2p/sdp-compact";
 import {
   createPasswordChannelCrypto,
   createTrustedChannelCrypto,
@@ -34,12 +42,15 @@ import {
   type SyncChannelCrypto,
 } from "@/lib/p2p/sync-channel";
 import { WebRtcPeer } from "@/lib/p2p/webrtc-peer";
-import type { AnswerPacket, OfferPacket } from "@/types/p2p-sync";
+import type { AnswerPacket, IcePatchPacket, OfferPacket } from "@/types/p2p-sync";
 import type { P2pExportBundle } from "@/lib/p2p/sync-export";
+import type { P2pSyncSettings } from "@/types/p2p-sync";
 
 export interface SessionResult {
   stats?: MergeStats;
   error?: string;
+  needsIcePatch?: boolean;
+  icePatchEncoded?: string;
 }
 
 export interface SenderSessionState {
@@ -47,36 +58,44 @@ export interface SenderSessionState {
   packet: OfferPacket;
   peer: WebRtcPeer;
   senderEphemeralPrivateKey?: CryptoKey;
+  p2pSettings?: P2pSyncSettings;
+}
+
+async function loadP2pSettings(): Promise<P2pSyncSettings | undefined> {
+  const settings = await db.settings.get("default");
+  return settings?.p2pSync;
 }
 
 export async function buildOfferPacket(
   password: string,
   deviceLabel: string,
 ): Promise<SenderSessionState> {
+  const p2pSettings = await loadP2pSettings();
   const identity = await ensureDeviceIdentity(password);
   const preview = await getP2pPreview();
   const sessionId = uuidv4();
   const expiresAt = createSessionExpiry();
   const senderEphemeral = await generateEphemeralKeyPair();
 
-  const peer = new WebRtcPeer({ role: "sender" });
+  const peer = new WebRtcPeer({ role: "sender", p2pSettings });
   const sdp = await peer.createOffer();
+  const signal = extractCompactSignal(sdp, "offer");
 
   const signature = await signPayload(identity, password, {
     sessionId,
     deviceId: identity.deviceId,
-    sdp,
+    signal: compactSignalFingerprint(signal),
     expiresAt,
   });
 
   const packet: OfferPacket = {
-    v: 1,
+    v: 2,
     type: "offer",
     sessionId,
     deviceId: identity.deviceId,
     publicKeyJwk: identity.publicKeyJwk,
     deviceLabel,
-    sdp,
+    signal,
     expiresAt,
     signature,
     ephemeralPublicKeyJwk: await exportPublicKeyJwk(senderEphemeral.publicKey),
@@ -88,6 +107,7 @@ export async function buildOfferPacket(
     packet,
     peer,
     senderEphemeralPrivateKey: senderEphemeral.privateKey,
+    p2pSettings,
   };
 }
 
@@ -98,12 +118,12 @@ export async function validateIncomingOffer(encoded: string) {
     {
       sessionId: packet.sessionId,
       deviceId: packet.deviceId,
-      sdp: packet.sdp,
+      signal: compactSignalFingerprint(packet.signal),
       expiresAt: packet.expiresAt,
     },
     packet.signature,
   );
-  if (!valid) throw new Error("Invalid offer signature");
+  if (!valid) throw new Error("Offer signature invalid");
 
   const trusted = await db.trustedSenders.get(packet.deviceId);
   const keyMismatch =
@@ -123,6 +143,7 @@ export interface ReceiverSessionState {
   peer: WebRtcPeer;
   offerPacket: OfferPacket;
   receiverEphemeralPrivateKey?: CryptoKey;
+  p2pSettings?: P2pSyncSettings;
 }
 
 export async function buildAnswerPacket(
@@ -138,7 +159,8 @@ export async function buildAnswerPacket(
   if (keyMismatch) throw new Error("Trusted device key mismatch");
 
   const settings = await db.settings.get("default");
-  const verifier = settings?.p2pSync?.passwordVerifier;
+  const p2pSettings = settings?.p2pSync;
+  const verifier = p2pSettings?.passwordVerifier;
   if (!trusted) {
     if (!options.senderPassword || !verifier) {
       throw new Error("Sync password required");
@@ -148,8 +170,10 @@ export async function buildAnswerPacket(
   }
 
   const identity = await ensureDeviceIdentity(password);
-  const peer = new WebRtcPeer({ role: "receiver" });
-  const sdp = await peer.applyOfferAndCreateAnswer(offer.sdp);
+  const peer = new WebRtcPeer({ role: "receiver", p2pSettings });
+  const offerSdp = rebuildSdp(offer.signal, "offer");
+  const answerSdp = await peer.applyOfferAndCreateAnswer(offerSdp);
+  const signal = extractCompactSignal(answerSdp, "answer");
   const expiresAt = createSessionExpiry();
   const trustLevel = trusted ? "trusted" : "password";
   const receiverEphemeral =
@@ -158,17 +182,17 @@ export async function buildAnswerPacket(
   const signature = await signPayload(identity, password, {
     sessionId: offer.sessionId,
     deviceId: identity.deviceId,
-    sdp,
+    signal: compactSignalFingerprint(signal),
     expiresAt,
   });
 
   const answer: AnswerPacket = {
-    v: 1,
+    v: 2,
     type: "answer",
     sessionId: offer.sessionId,
     deviceId: identity.deviceId,
     publicKeyJwk: identity.publicKeyJwk,
-    sdp,
+    signal,
     expiresAt,
     signature,
     trustLevel,
@@ -192,7 +216,42 @@ export async function buildAnswerPacket(
     peer,
     offerPacket: offer,
     receiverEphemeralPrivateKey: receiverEphemeral?.privateKey,
+    p2pSettings,
   };
+}
+
+export async function buildIcePatchPacket(
+  peer: WebRtcPeer,
+  sessionId: string,
+  deviceId: string,
+): Promise<string | null> {
+  const candidates = peer
+    .getPendingCandidates()
+    .filter((line) => line.trim().length > 0);
+  if (candidates.length === 0) return null;
+
+  const packet: IcePatchPacket = {
+    v: 2,
+    type: "ice-patch",
+    sessionId,
+    deviceId,
+    candidates: candidates.slice(0, 12),
+    expiresAt: createSessionExpiry(),
+  };
+
+  return encodeIcePatchPacket(packet);
+}
+
+export async function applyIcePatch(
+  peer: WebRtcPeer,
+  encoded: string,
+  expectedSessionId: string,
+): Promise<void> {
+  const patch = await decodeIcePatchPacket(encoded);
+  if (patch.sessionId !== expectedSessionId) {
+    throw new Error("ICE patch session mismatch");
+  }
+  await peer.applyRemoteCandidates(patch.candidates);
 }
 
 async function createSenderCrypto(
@@ -213,7 +272,7 @@ async function createSenderCrypto(
       ),
     );
   }
-  return createPasswordChannelCrypto(password);
+  return createPasswordChannelCrypto(password, answer.sessionId);
 }
 
 async function createReceiverCrypto(
@@ -234,7 +293,69 @@ async function createReceiverCrypto(
       ),
     );
   }
-  return createPasswordChannelCrypto(password);
+  return createPasswordChannelCrypto(password, answer.sessionId);
+}
+
+export async function prepareSenderConnection(
+  peer: WebRtcPeer,
+  offerPacket: OfferPacket,
+  answerEncoded: string,
+): Promise<SessionResult> {
+  try {
+    const answer = await decodeAnswerPacket(answerEncoded);
+    if (answer.sessionId !== offerPacket.sessionId) {
+      throw new Error("Session ID mismatch");
+    }
+    const answerSdp = rebuildSdp(answer.signal, "answer");
+    await peer.applyAnswer(answerSdp);
+    await peer.applyRemoteCandidates(extractExtraCandidates(answerSdp));
+
+    if (await peer.waitForConnection(12000)) return {};
+
+    const patch = await buildIcePatchPacket(
+      peer,
+      offerPacket.sessionId,
+      offerPacket.deviceId,
+    );
+    return {
+      error:
+        "Connection not ready — share the ICE patch code with the other device",
+      needsIcePatch: true,
+      icePatchEncoded: patch ?? undefined,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to apply answer",
+    };
+  }
+}
+
+export async function prepareReceiverConnection(
+  state: ReceiverSessionState,
+): Promise<SessionResult> {
+  const { peer, offerPacket, packet: answerPacket } = state;
+  try {
+    const offerSdp = rebuildSdp(offerPacket.signal, "offer");
+    await peer.applyRemoteCandidates(extractExtraCandidates(offerSdp));
+
+    if (await peer.waitForConnection(12000)) return {};
+
+    const patch = await buildIcePatchPacket(
+      peer,
+      offerPacket.sessionId,
+      answerPacket.deviceId,
+    );
+    return {
+      error:
+        "Connection not ready — share the ICE patch code with the other device",
+      needsIcePatch: true,
+      icePatchEncoded: patch ?? undefined,
+    };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Failed to prepare connection",
+    };
+  }
 }
 
 export function runSenderTransfer(
@@ -247,12 +368,86 @@ export function runSenderTransfer(
   return new Promise((resolve) => {
     const channel = new SyncChannel(peer);
     let finished = false;
+    let transferStarted = false;
 
     const done = (result: SessionResult) => {
       if (finished) return;
       finished = true;
       peer.close();
       resolve(result);
+    };
+
+    const startTransfer = () => {
+      if (transferStarted) return;
+      transferStarted = true;
+      void (async () => {
+        try {
+          const answer = await decodeAnswerPacket(answerEncoded);
+          if (answer.sessionId !== offerPacket.sessionId) {
+            throw new Error("Session ID mismatch");
+          }
+          const valid = await verifyPayload(
+            answer.publicKeyJwk,
+            {
+              sessionId: answer.sessionId,
+              deviceId: answer.deviceId,
+              signal: compactSignalFingerprint(answer.signal),
+              expiresAt: answer.expiresAt,
+            },
+            answer.signature,
+          );
+          if (!valid) throw new Error("Invalid answer signature");
+
+          const crypto = await createSenderCrypto(
+            answer,
+            password,
+            offerPacket,
+            senderEphemeralPrivateKey,
+          );
+          channel.setCrypto(crypto);
+
+          const bundle = await collectP2pBundle();
+          const json = JSON.stringify(bundle);
+          const chunks = chunkString(json);
+          const checksum = await sha256Hex(json);
+
+          await channel.send({
+            type: "sync-request",
+            exportedAt: bundle.exportedAt,
+            preview: {
+              tasks: bundle.tasks.length,
+              tags: bundle.tags.length,
+              categories: bundle.categories.length,
+            },
+          });
+
+          for (let i = 0; i < chunks.length; i++) {
+            const encrypted = await encryptChunk(
+              crypto,
+              chunks[i],
+              i,
+              chunks.length,
+            );
+            await channel.send({
+              type: "sync-bundle-chunk",
+              index: i,
+              total: chunks.length,
+              ciphertext: encrypted.ciphertext,
+              iv: encrypted.iv,
+            });
+          }
+
+          await channel.send({
+            type: "sync-complete",
+            exportedAt: bundle.exportedAt,
+            checksum,
+          });
+        } catch (err) {
+          done({
+            error: err instanceof Error ? err.message : "Failed to send sync",
+          });
+        }
+      })();
     };
 
     channel.onMessage((message) => {
@@ -264,87 +459,12 @@ export function runSenderTransfer(
     });
 
     peer.setHandlers({
-      onOpen: () => {
-        void (async () => {
-          try {
-            const answer = await decodeAnswerPacket(answerEncoded);
-            if (answer.sessionId !== offerPacket.sessionId) {
-              throw new Error("Session ID mismatch");
-            }
-            const valid = await verifyPayload(
-              answer.publicKeyJwk,
-              {
-                sessionId: answer.sessionId,
-                deviceId: answer.deviceId,
-                sdp: answer.sdp,
-                expiresAt: answer.expiresAt,
-              },
-              answer.signature,
-            );
-            if (!valid) throw new Error("Invalid answer signature");
-
-            const crypto = await createSenderCrypto(
-              answer,
-              password,
-              offerPacket,
-              senderEphemeralPrivateKey,
-            );
-            channel.setCrypto(crypto);
-
-            const bundle = await collectP2pBundle();
-            const json = JSON.stringify(bundle);
-            const chunks = chunkString(json);
-            const checksum = await sha256Hex(json);
-
-            await channel.send({
-              type: "sync-request",
-              exportedAt: bundle.exportedAt,
-              preview: {
-                tasks: bundle.tasks.length,
-                tags: bundle.tags.length,
-                categories: bundle.categories.length,
-              },
-            });
-
-            for (let i = 0; i < chunks.length; i++) {
-              const encrypted = await encryptChunk(
-                crypto,
-                chunks[i],
-                i,
-                chunks.length,
-              );
-              await channel.send({
-                type: "sync-bundle-chunk",
-                index: i,
-                total: chunks.length,
-                ciphertext: encrypted.ciphertext,
-                iv: encrypted.iv,
-              });
-            }
-
-            await channel.send({
-              type: "sync-complete",
-              exportedAt: bundle.exportedAt,
-              checksum,
-            });
-          } catch (err) {
-            done({
-              error: err instanceof Error ? err.message : "Failed to send sync",
-            });
-          }
-        })();
-      },
+      onOpen: startTransfer,
       onMessage: (data) => channel.handleRawMessage(data),
       onError: (err) => done({ error: err.message }),
     });
 
-    void decodeAnswerPacket(answerEncoded)
-      .then((answer) => peer.applyAnswer(answer.sdp))
-      .catch((err) =>
-        done({
-          error: err instanceof Error ? err.message : "Failed to apply answer",
-        }),
-      );
+    if (peer.isConnected()) startTransfer();
   });
 }
 

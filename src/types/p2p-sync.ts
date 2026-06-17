@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { CompactSignalSchema } from "@/lib/p2p/sdp-compact";
 
-export const P2P_PACKET_VERSION = 1;
-export const P2P_SESSION_TTL_MS = 5 * 60 * 1000;
+export const P2P_PACKET_VERSION = 2;
+export const P2P_SESSION_TTL_MS = 15 * 60 * 1000;
+export const P2P_MAX_ENCODED_CHARS = 1800;
 
 export const JsonWebKeySchema = z.custom<JsonWebKey>(
   (value) => typeof value === "object" && value !== null,
@@ -14,7 +16,7 @@ export const OfferPacketSchema = z.object({
   deviceId: z.string().min(8).max(16),
   publicKeyJwk: JsonWebKeySchema,
   deviceLabel: z.string().max(32),
-  sdp: z.string(),
+  signal: CompactSignalSchema,
   expiresAt: z.string().datetime(),
   signature: z.string(),
   ephemeralPublicKeyJwk: JsonWebKeySchema.optional(),
@@ -35,7 +37,7 @@ export const AnswerPacketSchema = z.object({
   sessionId: z.string().uuid(),
   deviceId: z.string().min(8).max(16),
   publicKeyJwk: JsonWebKeySchema,
-  sdp: z.string(),
+  signal: CompactSignalSchema,
   expiresAt: z.string().datetime(),
   signature: z.string(),
   trustLevel: z.enum(["trusted", "password"]),
@@ -43,6 +45,17 @@ export const AnswerPacketSchema = z.object({
 });
 
 export type AnswerPacket = z.infer<typeof AnswerPacketSchema>;
+
+export const IcePatchPacketSchema = z.object({
+  v: z.literal(P2P_PACKET_VERSION),
+  type: z.literal("ice-patch"),
+  sessionId: z.string().uuid(),
+  deviceId: z.string().min(8).max(16),
+  candidates: z.array(z.string()).max(12),
+  expiresAt: z.string().datetime(),
+});
+
+export type IcePatchPacket = z.infer<typeof IcePatchPacketSchema>;
 
 export const SyncChannelMessageSchema = z.discriminatedUnion("type", [
   z.object({
@@ -125,6 +138,10 @@ export const P2pSyncSettingsSchema = z.object({
     })
     .optional(),
   deviceLabel: z.string().max(32).optional(),
+  usePublicTurn: z.boolean().default(true),
+  turnUrls: z.string().max(240).optional(),
+  turnUsername: z.string().max(80).optional(),
+  turnCredential: z.string().max(80).optional(),
 });
 
 export type P2pSyncSettings = z.infer<typeof P2pSyncSettingsSchema>;

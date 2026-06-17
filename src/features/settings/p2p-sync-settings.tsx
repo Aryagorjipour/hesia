@@ -23,6 +23,10 @@ export function P2pSyncSettings() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [deviceLabel, setDeviceLabel] = useState(p2p?.deviceLabel ?? "");
+  const [usePublicTurn, setUsePublicTurn] = useState(p2p?.usePublicTurn ?? true);
+  const [turnUrls, setTurnUrls] = useState(p2p?.turnUrls ?? "");
+  const [turnUsername, setTurnUsername] = useState(p2p?.turnUsername ?? "");
+  const [turnCredential, setTurnCredential] = useState(p2p?.turnCredential ?? "");
   const [saving, setSaving] = useState(false);
 
   async function updateP2p(patch: Partial<NonNullable<typeof p2p>>) {
@@ -31,8 +35,12 @@ export function P2pSyncSettings() {
       ...current,
       p2pSync: {
         enabled: current.p2pSync?.enabled ?? false,
+        usePublicTurn: current.p2pSync?.usePublicTurn ?? true,
         passwordVerifier: current.p2pSync?.passwordVerifier,
         deviceLabel: current.p2pSync?.deviceLabel,
+        turnUrls: current.p2pSync?.turnUrls,
+        turnUsername: current.p2pSync?.turnUsername,
+        turnCredential: current.p2pSync?.turnCredential,
         ...patch,
       },
     });
@@ -105,9 +113,9 @@ export function P2pSyncSettings() {
             Nearby P2P sync
           </p>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Sync from your phone to this computer over Wi‑Fi. No cloud. Devices
-            are identified by a cryptographic key — not an IP address. You will
-            scan QR codes to connect.
+            Sync between your devices with compact QR codes. Works on the same
+            Wi‑Fi or across networks via STUN/TURN relay. Sync data stays
+            encrypted end-to-end over the peer connection.
           </p>
         </div>
         <Switch checked={enabled} onCheckedChange={(v) => void handleToggle(v)} />
@@ -165,6 +173,70 @@ export function P2pSyncSettings() {
         >
           {hasPassword ? "Update sync password" : "Set sync password"}
         </Button>
+
+        <div className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-3">
+          <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>Use public TURN relay for cross-network sync</span>
+            <Switch
+              checked={usePublicTurn}
+              onCheckedChange={(v) => {
+                setUsePublicTurn(v);
+                void updateP2p({ usePublicTurn: v });
+              }}
+            />
+          </label>
+          <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+            When direct connection fails, traffic may route through a public relay.
+            Payloads remain encrypted on the data channel.
+          </p>
+          <div className="space-y-1.5">
+            <Label htmlFor="p2p-turn-urls">Custom TURN URLs (optional)</Label>
+            <Input
+              id="p2p-turn-urls"
+              value={turnUrls}
+              onChange={(e) => setTurnUrls(e.target.value)}
+              placeholder="turn:your.server:3478, turns:your.server:5349"
+            />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="p2p-turn-user">TURN username</Label>
+              <Input
+                id="p2p-turn-user"
+                value={turnUsername}
+                onChange={(e) => setTurnUsername(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="p2p-turn-cred">TURN credential</Label>
+              <Input
+                id="p2p-turn-cred"
+                type="password"
+                value={turnCredential}
+                onChange={(e) => setTurnCredential(e.target.value)}
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void updateP2p({
+                turnUrls: turnUrls.trim() || undefined,
+                turnUsername: turnUsername.trim() || undefined,
+                turnCredential: turnCredential.trim() || undefined,
+              }).then(() =>
+                toast.success({
+                  title: "Network settings saved",
+                  description: "TURN relay preferences updated.",
+                }),
+              )
+            }
+          >
+            Save network settings
+          </Button>
+        </div>
       </div>
 
       {enabled ? (

@@ -1,30 +1,50 @@
-const ICE_CONFIG: RTCConfiguration = {
-  iceServers: [],
-  iceCandidatePoolSize: 0,
-};
+import { buildIceServers } from "@/lib/p2p/ice-config";
+import type { P2pSyncSettings } from "@/types/p2p-sync";
 
 export type PeerRole = "sender" | "receiver";
 
 export interface WebRtcPeerOptions {
   role: PeerRole;
+  p2pSettings?: P2pSyncSettings;
   onOpen?: () => void;
   onMessage?: (data: string) => void;
   onClose?: () => void;
   onError?: (error: Error) => void;
 }
 
+const ICE_GATHER_TIMEOUT_MS = 3000;
+const CONNECTION_TIMEOUT_MS = 12000;
+
 export class WebRtcPeer {
   private pc: RTCPeerConnection;
   private channel: RTCDataChannel | null = null;
   private handlers: WebRtcPeerOptions;
+  private pendingCandidates: string[] = [];
+  private appliedCandidates = new Set<string>();
 
   constructor(options: WebRtcPeerOptions) {
     this.handlers = options;
-    this.pc = new RTCPeerConnection(ICE_CONFIG);
+    this.pc = new RTCPeerConnection({
+      iceServers: buildIceServers(options.p2pSettings),
+      iceCandidatePoolSize: 0,
+    });
+
+    this.pc.onicecandidate = (event) => {
+      if (!event.candidate?.candidate) return;
+      const line = event.candidate.candidate;
+      if (!this.appliedCandidates.has(line)) {
+        this.pendingCandidates.push(line);
+      }
+    };
 
     this.pc.oniceconnectionstatechange = () => {
-      if (this.pc.iceConnectionState === "failed") {
-        this.handlers.onError?.(new Error("WebRTC connection failed"));
+      const state = this.pc.iceConnectionState;
+      if (state === "failed" || state === "disconnected") {
+        this.handlers.onError?.(
+          new Error(
+            "WebRTC connection failed — try same Wi‑Fi, enable TURN, or scan the ICE patch QR",
+          ),
+        );
       }
     };
 
@@ -68,7 +88,7 @@ export class WebRtcPeer {
       setTimeout(() => {
         this.pc.removeEventListener("icegatheringstatechange", check);
         resolve();
-      }, 8000);
+      }, ICE_GATHER_TIMEOUT_MS);
     });
   }
 
@@ -95,6 +115,55 @@ export class WebRtcPeer {
 
   async applyAnswer(answerSdp: string): Promise<void> {
     await this.pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+  }
+
+  async waitForConnection(timeoutMs = CONNECTION_TIMEOUT_MS): Promise<boolean> {
+    if (this.isConnected()) return true;
+
+    return new Promise((resolve) => {
+      const timeout = window.setTimeout(() => resolve(false), timeoutMs);
+      const check = () => {
+        if (this.isConnected()) {
+          window.clearTimeout(timeout);
+          this.pc.removeEventListener("connectionstatechange", check);
+          this.pc.removeEventListener("iceconnectionstatechange", check);
+          resolve(true);
+        }
+      };
+      this.pc.addEventListener("connectionstatechange", check);
+      this.pc.addEventListener("iceconnectionstatechange", check);
+      check();
+    });
+  }
+
+  isConnected(): boolean {
+    const ice = this.pc.iceConnectionState;
+    const conn = this.pc.connectionState;
+    return (
+      ice === "connected" ||
+      ice === "completed" ||
+      conn === "connected"
+    );
+  }
+
+  getPendingCandidates(): string[] {
+    return [...this.pendingCandidates];
+  }
+
+  async applyRemoteCandidates(candidates: string[]): Promise<void> {
+    for (const candidate of candidates) {
+      if (this.appliedCandidates.has(candidate)) continue;
+      try {
+        await this.pc.addIceCandidate({
+          candidate,
+          sdpMid: "0",
+          sdpMLineIndex: 0,
+        });
+        this.appliedCandidates.add(candidate);
+      } catch {
+        // ignore candidates that arrive after negotiation completes
+      }
+    }
   }
 
   send(data: string): void {

@@ -17,6 +17,8 @@ const buttonVariants = cva(
           "border border-border bg-transparent hover:bg-muted/40 active:scale-[0.98]",
         subtle:
           "bg-card text-card-foreground border border-border hover:bg-muted/30",
+        destructive:
+          "bg-red-500/90 text-white shadow-sm hover:bg-red-500 active:scale-[0.98]",
       },
       size: {
         default: "h-11 px-5 py-2",

@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { toast } from "@/lib/toast";
 
 const DEFAULT_CONFIG: AiConfig = {
   providerPreset: "grok",
@@ -85,6 +86,15 @@ export function AiConfigForm() {
       setApiKey("");
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
+      toast.success({
+        title: "AI configuration saved",
+        description: "Your provider settings are ready to use.",
+      });
+    } catch (e) {
+      toast.error({
+        title: "Could not save configuration",
+        description: e instanceof Error ? e.message : "Save failed",
+      });
     } finally {
       setSaving(false);
     }
@@ -112,16 +122,25 @@ export function AiConfigForm() {
         {
           onToken: () => {},
           onDone: (full) => {
+            const message = successPrefix ?? "Connection successful";
             setTestResult({
               ok: true,
-              message: successPrefix ?? "Connection successful",
+              message,
               sample: full.trim(),
+            });
+            toast.success({
+              title: "Connection successful",
+              description: message,
             });
             setTesting(false);
             resolve();
           },
           onError: (err) => {
             setTestResult({ ok: false, message: err.message });
+            toast.error({
+              title: "Connection failed",
+              description: err.message,
+            });
             setTesting(false);
             resolve();
           },
@@ -152,9 +171,15 @@ export function AiConfigForm() {
         `Context: ${ctx.summary.taskCount} tasks, ${ctx.summary.memoryCount} memories, week ${ctx.summary.weekLabel}`,
       );
     } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Context build failed";
       setTestResult({
         ok: false,
-        message: err instanceof Error ? err.message : "Context build failed",
+        message,
+      });
+      toast.error({
+        title: "Context test failed",
+        description: message,
       });
       setTesting(false);
     }

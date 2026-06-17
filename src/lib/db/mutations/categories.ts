@@ -28,8 +28,14 @@ export async function updateCategory(
   updates: Partial<Pick<Category, "colorHex" | "description" | "iconName">>,
 ): Promise<void> {
   const existing = await db.categories.get(name);
-  if (!existing) return;
-  await db.categories.update(name, { ...updates, updatedAt: syncNow() });
+  if (!existing) {
+    throw new Error(`Category "${name}" not found`);
+  }
+  await db.categories.put({
+    ...existing,
+    ...updates,
+    updatedAt: syncNow(),
+  });
 }
 
 export async function renameCategory(
@@ -40,20 +46,23 @@ export async function renameCategory(
   if (!trimmed || oldName === trimmed) return;
 
   const existing = await db.categories.get(oldName);
-  if (!existing) return;
+  if (!existing) {
+    throw new Error(`Category "${oldName}" not found`);
+  }
 
   const target = await db.categories.get(trimmed);
   if (target && target.name !== oldName) {
     throw new Error(`Category "${trimmed}" already exists`);
   }
 
-  await db.transaction("rw", db.tasks, db.categories, async () => {
+  await db.transaction("rw", db.tasks, db.categories, db.syncTombstones, async () => {
     const tasks = await db.tasks
       .filter((t) => t.category === oldName)
       .toArray();
 
+    const now = syncNow();
     for (const task of tasks) {
-      await db.tasks.update(task.id, { category: trimmed });
+      await db.tasks.update(task.id, { category: trimmed, updatedAt: now });
     }
 
     await recordTombstone("category", oldName);
@@ -62,16 +71,22 @@ export async function renameCategory(
       ...existing,
       name: trimmed,
       usageCount: tasks.length,
-      updatedAt: syncNow(),
+      updatedAt: now,
     });
   });
 }
 
 export async function deleteCategory(name: string): Promise<void> {
-  await db.transaction("rw", db.tasks, db.categories, async () => {
+  const existing = await db.categories.get(name);
+  if (!existing) {
+    throw new Error(`Category "${name}" not found`);
+  }
+
+  await db.transaction("rw", db.tasks, db.categories, db.syncTombstones, async () => {
     const tasks = await db.tasks.filter((t) => t.category === name).toArray();
+    const now = syncNow();
     for (const task of tasks) {
-      await db.tasks.update(task.id, { category: undefined });
+      await db.tasks.update(task.id, { category: undefined, updatedAt: now });
     }
     await recordTombstone("category", name);
     await db.categories.delete(name);

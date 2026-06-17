@@ -3,10 +3,37 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { ShieldCheck, Trash2 } from "lucide-react";
 import { db } from "@/lib/db/schema";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 
 export function P2pTrustedDevices() {
   const trusted = useLiveQuery(() => db.trustedSenders.toArray(), []);
+
+  async function handleRemove(deviceId: string, label: string) {
+    const confirmed = await confirm({
+      title: `Remove "${label}"?`,
+      description:
+        "This device will no longer be trusted. You'll need to enter your sync password on the next sync.",
+      confirmLabel: "Remove device",
+      cancelLabel: "Keep device",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await db.trustedSenders.delete(deviceId);
+      toast.success({
+        title: "Device removed",
+        description: `"${label}" is no longer a trusted device.`,
+      });
+    } catch (e) {
+      toast.error({
+        title: "Could not remove device",
+        description: e instanceof Error ? e.message : "Remove failed",
+      });
+    }
+  }
 
   if (!trusted?.length) {
     return (
@@ -37,10 +64,12 @@ export function P2pTrustedDevices() {
             </p>
           </div>
           <Button
+            type="button"
             size="sm"
             variant="ghost"
             className="h-8 shrink-0 text-muted-foreground hover:text-unplanned"
-            onClick={() => void db.trustedSenders.delete(device.deviceId)}
+            aria-label={`Remove trusted device ${device.label}`}
+            onClick={() => void handleRemove(device.deviceId, device.label)}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>

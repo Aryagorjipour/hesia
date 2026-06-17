@@ -6,6 +6,7 @@ import type { ZenPreset, PresetWorkspaceConfig } from "@/types/settings";
 import type { TaskStatus } from "@/types/task";
 import { COLUMN_LABELS } from "@/types/task";
 import { ZEN_PRESETS } from "@/lib/theme/presets";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,6 +66,15 @@ function WorkspaceConfigFields({
         columnNames:
           Object.keys(columnNames).length > 0 ? columnNames : undefined,
         boardSubtitle: boardSubtitle.trim() || undefined,
+      });
+      toast.success({
+        title: "Workspace saved",
+        description: `Layout updated for ${presetName}.`,
+      });
+    } catch (e) {
+      toast.error({
+        title: "Could not save workspace",
+        description: e instanceof Error ? e.message : "Save failed",
       });
     } finally {
       setSaving(false);

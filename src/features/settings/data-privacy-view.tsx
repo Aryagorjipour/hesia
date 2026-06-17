@@ -13,6 +13,8 @@ import {
   type ImportMode,
 } from "@/lib/export/full-export";
 import { isEncryptedExport } from "@/lib/crypto/export-vault";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import { NotificationsForm } from "./notifications-form";
 import { P2pSyncSettings } from "./p2p-sync-settings";
 import { Button } from "@/components/ui/button";
@@ -53,8 +55,6 @@ export function DataPrivacyView() {
   const [importPassword, setImportPassword] = useState("");
   const [pendingImport, setPendingImport] = useState<unknown | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   function validateExportPassword(): string | undefined {
     if (!encryptExport) return undefined;
@@ -69,17 +69,20 @@ export function DataPrivacyView() {
 
   async function handleJsonExport() {
     setExporting(true);
-    setError(null);
     try {
       const password = validateExportPassword();
       await downloadJsonExport({ password });
-      setMessage(
-        password
-          ? "Encrypted export downloaded (.hesia)"
-          : "JSON export downloaded",
-      );
+      toast.success({
+        title: "Export downloaded",
+        description: password
+          ? "Encrypted .hesia file saved to your downloads."
+          : "JSON export saved to your downloads.",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export failed");
+      toast.error({
+        title: "Export failed",
+        description: e instanceof Error ? e.message : "Export failed",
+      });
     } finally {
       setExporting(false);
     }
@@ -87,17 +90,20 @@ export function DataPrivacyView() {
 
   async function handleZipExport() {
     setExporting(true);
-    setError(null);
     try {
       const password = validateExportPassword();
       await downloadZipExport({ password });
-      setMessage(
-        password
-          ? "Encrypted ZIP export downloaded"
-          : "ZIP export downloaded",
-      );
+      toast.success({
+        title: "Export downloaded",
+        description: password
+          ? "Encrypted ZIP bundle saved to your downloads."
+          : "ZIP bundle saved to your downloads.",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export failed");
+      toast.error({
+        title: "Export failed",
+        description: e instanceof Error ? e.message : "Export failed",
+      });
     } finally {
       setExporting(false);
     }
@@ -105,15 +111,14 @@ export function DataPrivacyView() {
 
   async function runImport(raw: unknown, password?: string) {
     const result = await importExportBundle(raw, importMode, password);
-    setMessage(
-      `Imported ${result.tasks} tasks, ${result.tags} tags, ${result.categories} categories (${importMode})`,
-    );
+    toast.success({
+      title: "Import complete",
+      description: `Imported ${result.tasks} tasks, ${result.tags} tags, and ${result.categories} categories (${importMode}).`,
+    });
   }
 
   async function handleImport(file: File) {
     setImporting(true);
-    setError(null);
-    setMessage(null);
     try {
       const raw = await readImportPayload(file);
 
@@ -126,7 +131,10 @@ export function DataPrivacyView() {
 
       await runImport(raw);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
+      toast.error({
+        title: "Import failed",
+        description: e instanceof Error ? e.message : "Import failed",
+      });
     } finally {
       setImporting(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -136,29 +144,44 @@ export function DataPrivacyView() {
   async function handlePasswordImport() {
     if (!pendingImport) return;
     setImporting(true);
-    setError(null);
     try {
       await runImport(pendingImport, importPassword);
       setPasswordDialogOpen(false);
       setPendingImport(null);
       setImportPassword("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
+      toast.error({
+        title: "Import failed",
+        description: e instanceof Error ? e.message : "Import failed",
+      });
     } finally {
       setImporting(false);
     }
   }
 
   async function handleClearAll() {
-    if (
-      !confirm(
-        "Delete ALL tasks, tags, reports, chat, and memory? Settings are kept. This cannot be undone.",
-      )
-    ) {
-      return;
+    const confirmed = await confirm({
+      title: "Clear all user data?",
+      description:
+        "This permanently deletes all tasks, tags, categories, reports, chat, and memory. Settings are kept. This cannot be undone.",
+      confirmLabel: "Clear all data",
+      cancelLabel: "Cancel",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    try {
+      await clearAllUserData();
+      toast.success({
+        title: "Data cleared",
+        description: "All user data has been removed. Your settings are unchanged.",
+      });
+    } catch (e) {
+      toast.error({
+        title: "Could not clear data",
+        description: e instanceof Error ? e.message : "Clear failed",
+      });
     }
-    await clearAllUserData();
-    setMessage("All user data cleared");
   }
 
   return (
@@ -229,6 +252,7 @@ export function DataPrivacyView() {
 
         <div className="flex flex-wrap gap-2">
           <Button
+            type="button"
             variant="secondary"
             size="sm"
             className="gap-1.5"
@@ -239,6 +263,7 @@ export function DataPrivacyView() {
             ZIP bundle
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="gap-1.5"
@@ -295,6 +320,7 @@ export function DataPrivacyView() {
           }}
         />
         <Button
+          type="button"
           variant="secondary"
           size="sm"
           className="gap-1.5"
@@ -313,6 +339,7 @@ export function DataPrivacyView() {
           memory. Profile, AI settings, and appearance are preserved.
         </p>
         <Button
+          type="button"
           variant="ghost"
           size="sm"
           className="gap-1.5 text-red-400 hover:bg-red-500/10 hover:text-red-400"
@@ -322,17 +349,6 @@ export function DataPrivacyView() {
           Clear all data
         </Button>
       </div>
-
-      {message && (
-        <p className="rounded-xl bg-accent/10 px-3 py-2 text-xs text-accent">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-400">
-          {error}
-        </p>
-      )}
 
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -351,6 +367,7 @@ export function DataPrivacyView() {
               autoComplete="current-password"
             />
             <Button
+              type="button"
               className="w-full"
               onClick={() => void handlePasswordImport()}
               disabled={importing || !importPassword}

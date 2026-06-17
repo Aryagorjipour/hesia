@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Bell } from "lucide-react";
 import { db } from "@/lib/db/schema";
 import { requestNotificationPermission } from "@/lib/notifications/reflection-reminder";
+import { toast } from "@/lib/toast";
 import type { AppSettings } from "@/types/settings";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,6 @@ export function NotificationsForm() {
   };
 
   const [saving, setSaving] = useState(false);
-  const [permStatus, setPermStatus] = useState<string | null>(null);
 
   async function persist(patch: Partial<AppSettings["notifications"]>) {
     if (!settings) return;
@@ -51,6 +51,21 @@ export function NotificationsForm() {
         ...settings,
         notifications: { ...notifications, ...patch },
       });
+      if ("weeklyReflection" in patch) {
+        toast.info({
+          title: patch.weeklyReflection
+            ? "Reminder enabled"
+            : "Reminder disabled",
+          description: patch.weeklyReflection
+            ? "You'll get a browser nudge to review your week."
+            : "Weekly reflection reminders are turned off.",
+        });
+      }
+    } catch (e) {
+      toast.error({
+        title: "Could not update notifications",
+        description: e instanceof Error ? e.message : "Update failed",
+      });
     } finally {
       setSaving(false);
     }
@@ -58,7 +73,22 @@ export function NotificationsForm() {
 
   async function handleEnableNotifications() {
     const perm = await requestNotificationPermission();
-    setPermStatus(perm);
+    if (perm === "granted") {
+      toast.success({
+        title: "Notifications enabled",
+        description: "Browser notifications are allowed for this app.",
+      });
+    } else if (perm === "denied") {
+      toast.warning({
+        title: "Notifications blocked",
+        description: "Enable notifications in your browser settings to use reminders.",
+      });
+    } else {
+      toast.info({
+        title: "Permission pending",
+        description: `Notification permission: ${perm}`,
+      });
+    }
   }
 
   return (
@@ -129,17 +159,13 @@ export function NotificationsForm() {
         )}
 
         <Button
+          type="button"
           variant="secondary"
           size="sm"
           onClick={() => void handleEnableNotifications()}
         >
           Enable browser notifications
         </Button>
-        {permStatus && (
-          <p className="text-xs text-muted-foreground">
-            Permission: {permStatus}
-          </p>
-        )}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +20,6 @@ interface P2pQrScannerProps {
 export function P2pQrScanner({ onScan, label }: P2pQrScannerProps) {
   const [manual, setManual] = useState("");
   const [useCamera, setUseCamera] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
@@ -33,11 +33,15 @@ export function P2pQrScanner({ onScan, label }: P2pQrScannerProps) {
             onScan={(detected) => {
               const value = detected[0]?.rawValue;
               if (value) {
-                setError(null);
                 onScan(value);
               }
             }}
-            onError={() => setError("Camera unavailable — paste the code below")}
+            onError={() => {
+              toast.warning({
+                title: "Camera unavailable",
+                description: "Paste the pairing code below instead.",
+              });
+            }}
             constraints={{ facingMode: "environment" }}
             styles={{
               container: { width: "100%", minHeight: 240 },
@@ -45,8 +49,6 @@ export function P2pQrScanner({ onScan, label }: P2pQrScannerProps) {
           />
         </div>
       ) : null}
-
-      {error ? <p className="text-xs text-unplanned">{error}</p> : null}
 
       <div className="space-y-2">
         <Label htmlFor="pairing-code">Or paste pairing code</Label>
@@ -60,6 +62,7 @@ export function P2pQrScanner({ onScan, label }: P2pQrScannerProps) {
         />
         <div className="flex flex-wrap gap-2">
           <Button
+            type="button"
             size="sm"
             disabled={!manual.trim()}
             onClick={() => onScan(manual.trim())}
@@ -67,6 +70,7 @@ export function P2pQrScanner({ onScan, label }: P2pQrScannerProps) {
             Use pasted code
           </Button>
           <Button
+            type="button"
             size="sm"
             variant="ghost"
             onClick={() => setUseCamera((v) => !v)}

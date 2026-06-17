@@ -5,17 +5,12 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { User } from "lucide-react";
 import { db } from "@/lib/db/schema";
 import type { Profile } from "@/types/settings";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function ProfileForm({
-  initialProfile,
-  onSaved,
-}: {
-  initialProfile: Profile;
-  onSaved: (message: string) => void;
-}) {
+function ProfileForm({ initialProfile }: { initialProfile: Profile }) {
   const [username, setUsername] = useState(initialProfile.username ?? "");
   const [workspaceName, setWorkspaceName] = useState(
     initialProfile.workspaceName ?? "",
@@ -30,7 +25,15 @@ function ProfileForm({
         workspaceName: workspaceName.trim() || undefined,
       };
       await db.settings.update("default", { profile: next });
-      onSaved("Profile saved");
+      toast.success({
+        title: "Profile saved",
+        description: "Your username and workspace name have been updated.",
+      });
+    } catch (e) {
+      toast.error({
+        title: "Could not save profile",
+        description: e instanceof Error ? e.message : "Failed to save profile",
+      });
     } finally {
       setSaving(false);
     }
@@ -99,22 +102,11 @@ function ProfileForm({
 export function AccountView() {
   const settings = useLiveQuery(() => db.settings.get("default"));
   const profile = settings?.profile ?? {};
-  const [message, setMessage] = useState<string | null>(null);
   const formKey = `${profile.username ?? ""}|${profile.workspaceName ?? ""}`;
 
   return (
     <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-      <ProfileForm
-        key={formKey}
-        initialProfile={profile}
-        onSaved={setMessage}
-      />
-
-      {message && (
-        <p className="rounded-xl bg-accent/10 px-3 py-2 text-xs text-accent">
-          {message}
-        </p>
-      )}
+      <ProfileForm key={formKey} initialProfile={profile} />
     </div>
   );
 }

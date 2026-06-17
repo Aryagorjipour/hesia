@@ -29,8 +29,14 @@ export async function updateTag(
   updates: Partial<Pick<Tag, "colorHex">>,
 ): Promise<void> {
   const existing = await db.tags.get(name);
-  if (!existing) return;
-  await db.tags.update(name, { ...updates, updatedAt: syncNow() });
+  if (!existing) {
+    throw new Error(`Tag "${name}" not found`);
+  }
+  await db.tags.put({
+    ...existing,
+    ...updates,
+    updatedAt: syncNow(),
+  });
 }
 
 export async function renameTag(
@@ -41,18 +47,22 @@ export async function renameTag(
   if (!trimmed || oldName === trimmed) return;
 
   const existing = await db.tags.get(oldName);
-  if (!existing) return;
+  if (!existing) {
+    throw new Error(`Tag "${oldName}" not found`);
+  }
 
   const target = await db.tags.get(trimmed);
   if (target && target.name !== oldName) {
     throw new Error(`Tag "${trimmed}" already exists`);
   }
 
-  await db.transaction("rw", db.tasks, db.tags, async () => {
+  await db.transaction("rw", db.tasks, db.tags, db.syncTombstones, async () => {
     const tasks = await db.tasks.filter((t) => t.tags.includes(oldName)).toArray();
+    const now = syncNow();
     for (const task of tasks) {
       await db.tasks.update(task.id, {
         tags: task.tags.map((t) => (t === oldName ? trimmed : t)),
+        updatedAt: now,
       });
     }
 
@@ -63,7 +73,7 @@ export async function renameTag(
       name: trimmed,
       usageCount: tasks.length,
       lastUsedAt: tasks.length > 0 ? toISO(new Date()) : existing.lastUsedAt,
-      updatedAt: syncNow(),
+      updatedAt: now,
     });
   });
 }
@@ -78,11 +88,18 @@ export async function mergeTags(
 }
 
 export async function deleteTag(name: string): Promise<void> {
-  await db.transaction("rw", db.tasks, db.tags, async () => {
+  const existing = await db.tags.get(name);
+  if (!existing) {
+    throw new Error(`Tag "${name}" not found`);
+  }
+
+  await db.transaction("rw", db.tasks, db.tags, db.syncTombstones, async () => {
     const tasks = await db.tasks.filter((t) => t.tags.includes(name)).toArray();
+    const now = syncNow();
     for (const task of tasks) {
       await db.tasks.update(task.id, {
         tags: task.tags.filter((t) => t !== name),
+        updatedAt: now,
       });
     }
     await recordTombstone("tag", name);

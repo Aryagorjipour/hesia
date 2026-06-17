@@ -1,0 +1,19 @@
+---
+pid: 16936
+cwd: "C:\Users\A.Gorjipour\Documents\Desktop\M\projects\idea\aether"
+command: "cd \"C:\\Users\\A.Gorjipour\\Documents\\Desktop\\M\\projects\\idea\\aether\"; npm run dev"
+started_at: 2026-06-17T11:27:53.916Z
+running_for_ms: 2655005  
+---
+
+> hesia@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.2.9 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://172.16.24.121:3000
+✓ Ready in 908ms
+○ (serwist) Serwist is disabled.
+○ (serwist) Serwist is disabled.
+
+○ Compiling / ...

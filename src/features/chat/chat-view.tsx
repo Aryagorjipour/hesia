@@ -19,7 +19,6 @@ export function ChatView() {
     messages,
     streamingMessage,
     streaming,
-    error,
     aiConfigured,
     sendMessage,
     stopStreaming,
@@ -118,11 +117,6 @@ export function ChatView() {
                 isStreaming={msg.id === "streaming" && streaming}
               />
             ))}
-            {error && (
-              <p className="rounded-xl bg-red-500/10 px-4 py-2 text-center text-xs text-red-400">
-                {error}
-              </p>
-            )}
           </div>
         )}
       </div>

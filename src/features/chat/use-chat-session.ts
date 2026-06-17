@@ -8,13 +8,14 @@ import { addChatMessage, clearChatSession } from "@/lib/db/mutations/chat";
 import { streamChatCompletion } from "@/lib/ai/client";
 import { buildContext } from "@/lib/ai/context-builder";
 import { persistMemoryUpdates } from "@/lib/ai/memory-parser";
+import { toast } from "@/lib/toast";
 import { toISO } from "@/lib/utils/dates";
 import type { ChatMessage } from "@/types/chat";
+
 export function useChatSession() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const abortRef = useRef(false);
 
   const settings = useLiveQuery(() => db.settings.get("default"));
@@ -40,11 +41,13 @@ export function useChatSession() {
     async (userText: string) => {
       if (!sessionId || !aiConfig || streaming) return;
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        setError("You're offline. AI chat needs a connection.");
+        toast.warning({
+          title: "You're offline",
+          description: "AI chat needs an internet connection.",
+        });
         return;
       }
 
-      setError(null);
       setStreaming(true);
       setStreamText("");
       abortRef.current = false;
@@ -82,21 +85,32 @@ export function useChatSession() {
                     model: aiConfig.model,
                   });
                 } catch (err) {
-                  setError(
-                    err instanceof Error ? err.message : "Failed to save message",
-                  );
+                  toast.error({
+                    title: "Could not save message",
+                    description:
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to save message",
+                  });
                 }
                 resolve();
               },
               onError: (err) => {
-                setError(err.message);
+                toast.error({
+                  title: "AI request failed",
+                  description: err.message,
+                });
                 resolve();
               },
             },
           );
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
+        toast.error({
+          title: "Something went wrong",
+          description:
+            err instanceof Error ? err.message : "Something went wrong",
+        });
       } finally {
         setStreaming(false);
         setStreamText("");
@@ -114,7 +128,10 @@ export function useChatSession() {
   const clearChat = useCallback(async () => {
     if (!sessionId) return;
     await clearChatSession(sessionId);
-    setError(null);
+    toast.info({
+      title: "Chat cleared",
+      description: "Conversation history has been removed.",
+    });
   }, [sessionId]);
 
   const streamingMessage: ChatMessage | null =
@@ -141,7 +158,6 @@ export function useChatSession() {
     messages,
     streamingMessage,
     streaming,
-    error,
     aiConfigured: !!aiConfig?.baseUrl && !!aiConfig?.model,
     aiConfig,
     sendMessage,

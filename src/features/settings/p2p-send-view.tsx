@@ -12,6 +12,7 @@ import {
   runSenderTransfer,
   type SenderSessionState,
 } from "@/lib/p2p/sync-session";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 
 type Step = "start" | "offer" | "scan-answer" | "transferring" | "done" | "error";
@@ -19,7 +20,6 @@ type Step = "start" | "offer" | "scan-answer" | "transferring" | "done" | "error
 export function P2pSendView() {
   const settings = useLiveQuery(() => db.settings.get("default"));
   const [step, setStep] = useState<Step>("start");
-  const [error, setError] = useState<string | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const sessionRef = useRef<SenderSessionState | null>(null);
   const [offerEncoded, setOfferEncoded] = useState<string | null>(null);
@@ -33,16 +33,17 @@ export function P2pSendView() {
     "Hesia device";
 
   async function startSession() {
-    setError(null);
     const p2p = settings?.p2pSync;
     if (!p2p?.enabled || !p2p.passwordVerifier) {
-      setError("Enable P2P sync and set a password in Data & Privacy first");
+      toast.error({
+        title: "P2P sync not ready",
+        description: "Enable P2P sync and set a password in Data & Privacy first.",
+      });
       setStep("error");
       return;
     }
 
-    const password = passwordRef.current;
-    if (!password) {
+    if (!passwordRef.current) {
       const entered = window.prompt("Enter your sync password to start sending:");
       if (!entered) return;
       passwordRef.current = entered;
@@ -55,7 +56,10 @@ export function P2pSendView() {
       setOfferDeviceId(session.packet.deviceId);
       setStep("offer");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start session");
+      toast.error({
+        title: "Could not start sync",
+        description: e instanceof Error ? e.message : "Failed to start session",
+      });
       setStep("error");
     }
   }
@@ -64,7 +68,6 @@ export function P2pSendView() {
     const session = sessionRef.current;
     if (!session) return;
     setStep("transferring");
-    setError(null);
 
     const result = await runSenderTransfer(
       session.peer,
@@ -75,17 +78,24 @@ export function P2pSendView() {
     );
 
     if (result.error) {
-      setError(result.error);
+      toast.error({
+        title: "Sync failed",
+        description: result.error,
+      });
       setStep("error");
       return;
     }
 
     const stats = result.stats;
-    setResultMessage(
+    const message =
       stats
         ? `Synced ${stats.updated} updates (${stats.skipped} skipped, ${stats.deleted} deleted)`
-        : "Sync complete",
-    );
+        : "Sync complete";
+    setResultMessage(message);
+    toast.success({
+      title: "Sync complete",
+      description: message,
+    });
     setStep("done");
     passwordRef.current = "";
   }
@@ -113,7 +123,7 @@ export function P2pSendView() {
             Your phone will share tasks, tags, and settings with a trusted desktop
             on the same Wi‑Fi.
           </p>
-          <Button className="mt-4" onClick={() => void startSession()}>
+          <Button type="button" className="mt-4" onClick={() => void startSession()}>
             Start sync
           </Button>
         </div>
@@ -129,7 +139,11 @@ export function P2pSendView() {
           <p className="text-center text-sm text-muted-foreground">
             On your desktop, open Receive from my phone and scan this code.
           </p>
-          <Button className="w-full" onClick={() => setStep("scan-answer")}>
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => setStep("scan-answer")}
+          >
             Desktop accepted — scan answer code
           </Button>
         </div>
@@ -164,10 +178,17 @@ export function P2pSendView() {
         </div>
       ) : null}
 
-      {step === "error" && error ? (
-        <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-5">
-          <p className="text-sm text-unplanned">{error}</p>
-          <Button className="mt-4" variant="outline" onClick={() => setStep("start")}>
+      {step === "error" ? (
+        <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-5 text-center">
+          <p className="text-sm text-muted-foreground">
+            Sync could not be completed. Check the notification for details.
+          </p>
+          <Button
+            type="button"
+            className="mt-4"
+            variant="outline"
+            onClick={() => setStep("start")}
+          >
             Try again
           </Button>
         </div>

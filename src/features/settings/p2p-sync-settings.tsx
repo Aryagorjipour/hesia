@@ -7,6 +7,7 @@ import { Smartphone, Monitor, Radio } from "lucide-react";
 import { db } from "@/lib/db/schema";
 import { createPasswordVerifier } from "@/lib/crypto/sync-password";
 import { ensureDeviceIdentity } from "@/lib/crypto/device-identity";
+import { toast } from "@/lib/toast";
 import { P2pTrustedDevices } from "@/features/settings/p2p-trusted-devices";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +24,6 @@ export function P2pSyncSettings() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [deviceLabel, setDeviceLabel] = useState(p2p?.deviceLabel ?? "");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function updateP2p(patch: Partial<NonNullable<typeof p2p>>) {
     const current = (await db.settings.get("default"))!;
@@ -40,19 +39,24 @@ export function P2pSyncSettings() {
   }
 
   async function handleToggle(next: boolean) {
-    setError(null);
     if (next && !hasPassword) {
-      setError("Set a sync password before enabling P2P sync");
+      toast.warning({
+        title: "Sync password required",
+        description: "Set a sync password before enabling P2P sync.",
+      });
       return;
     }
     await updateP2p({ enabled: next });
-    setMessage(next ? "P2P sync enabled" : "P2P sync disabled");
+    toast.info({
+      title: next ? "P2P sync enabled" : "P2P sync disabled",
+      description: next
+        ? "You can now send or receive data from trusted devices."
+        : "Nearby device sync is turned off.",
+    });
   }
 
   async function handleSavePassword() {
     setSaving(true);
-    setError(null);
-    setMessage(null);
     try {
       if (password.length < 8) {
         throw new Error("Sync password must be at least 8 characters");
@@ -68,9 +72,15 @@ export function P2pSyncSettings() {
       });
       setPassword("");
       setPasswordConfirm("");
-      setMessage("Sync password saved");
+      toast.success({
+        title: "Sync password saved",
+        description: "Your device is ready for encrypted P2P sync.",
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save password");
+      toast.error({
+        title: "Could not save password",
+        description: e instanceof Error ? e.message : "Failed to save password",
+      });
     } finally {
       setSaving(false);
     }
@@ -78,7 +88,12 @@ export function P2pSyncSettings() {
 
   async function handleSaveLabel() {
     await updateP2p({ deviceLabel: deviceLabel.trim() || undefined });
-    setMessage("Device label saved");
+    toast.success({
+      title: "Device label saved",
+      description: deviceLabel.trim()
+        ? `This device will appear as "${deviceLabel.trim()}".`
+        : "Device label cleared.",
+    });
   }
 
   return (
@@ -110,6 +125,7 @@ export function P2pSyncSettings() {
               maxLength={32}
             />
             <Button
+              type="button"
               size="sm"
               variant="outline"
               className="shrink-0"
@@ -142,6 +158,7 @@ export function P2pSyncSettings() {
           </div>
         </div>
         <Button
+          type="button"
           size="sm"
           disabled={saving || !password}
           onClick={() => void handleSavePassword()}
@@ -173,9 +190,6 @@ export function P2pSyncSettings() {
         </p>
         <P2pTrustedDevices />
       </div>
-
-      {message ? <p className="mt-3 text-xs text-planned">{message}</p> : null}
-      {error ? <p className="mt-3 text-xs text-unplanned">{error}</p> : null}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "@/lib/p2p/sync-session";
 import type { OfferPacket } from "@/types/p2p-sync";
 import type { TrustedSender } from "@/types/p2p-sync";
+import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,6 @@ export function P2pReceiveView() {
   const [keyMismatch, setKeyMismatch] = useState(false);
   const [password, setPassword] = useState("");
   const [trustDevice, setTrustDevice] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const receiverRef = useRef<ReceiverSessionState | null>(null);
   const [answerEncoded, setAnswerEncoded] = useState<string | null>(null);
@@ -41,7 +41,6 @@ export function P2pReceiveView() {
   const localPasswordRef = useRef("");
 
   async function handleOfferScan(encoded: string) {
-    setError(null);
     try {
       const result = await validateIncomingOffer(encoded);
       offerEncodedRef.current = encoded;
@@ -50,14 +49,16 @@ export function P2pReceiveView() {
       setKeyMismatch(result.keyMismatch);
       setStep("review");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Invalid offer");
+      toast.error({
+        title: "Invalid offer",
+        description: e instanceof Error ? e.message : "Invalid offer",
+      });
       setStep("error");
     }
   }
 
   async function handleAccept() {
     if (!offerPacket) return;
-    setError(null);
 
     let localPassword = localPasswordRef.current;
     if (!localPassword) {
@@ -82,21 +83,31 @@ export function P2pReceiveView() {
 
       void runReceiverTransfer(receiverState, localPassword).then((result) => {
         if (result.error) {
-          setError(result.error);
+          toast.error({
+            title: "Sync failed",
+            description: result.error,
+          });
           setStep("error");
           return;
         }
         const stats = result.stats;
-        setResultMessage(
+        const message =
           stats
             ? `Applied ${stats.updated} updates (${stats.skipped} skipped, ${stats.deleted} deleted)`
-            : "Sync applied",
-        );
+            : "Sync applied";
+        setResultMessage(message);
+        toast.success({
+          title: "Sync applied",
+          description: message,
+        });
         setStep("done");
         localPasswordRef.current = "";
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to accept sync");
+      toast.error({
+        title: "Could not accept sync",
+        description: e instanceof Error ? e.message : "Failed to accept sync",
+      });
       setStep("error");
     }
   }
@@ -183,12 +194,17 @@ export function P2pReceiveView() {
 
           <div className="flex gap-2">
             <Button
+              type="button"
               onClick={() => void handleAccept()}
               disabled={!trusted && password.length < 8}
             >
               Accept
             </Button>
-            <Button variant="ghost" onClick={() => setStep("scan-offer")}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setStep("scan-offer")}
+            >
               Reject
             </Button>
           </div>
@@ -223,16 +239,16 @@ export function P2pReceiveView() {
         </div>
       ) : null}
 
-      {step === "error" && error ? (
-        <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-5">
-          <p className="text-sm text-unplanned">{error}</p>
+      {step === "error" ? (
+        <div className="rounded-2xl border border-unplanned/30 bg-unplanned/10 p-5 text-center">
+          <p className="text-sm text-muted-foreground">
+            Sync could not be completed. Check the notification for details.
+          </p>
           <Button
+            type="button"
             className="mt-4"
             variant="outline"
-            onClick={() => {
-              setStep("scan-offer");
-              setError(null);
-            }}
+            onClick={() => setStep("scan-offer")}
           >
             Try again
           </Button>

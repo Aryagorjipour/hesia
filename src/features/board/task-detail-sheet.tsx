@@ -26,6 +26,8 @@ import {
   nextBoardDate,
 } from "@/lib/utils/board-dates";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { confirm } from "@/lib/confirm";
+import { toast } from "@/lib/toast";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +127,16 @@ function TaskDetailForm({
         category: category || undefined,
         durationMinutes: duration ? parseInt(duration, 10) : undefined,
       });
+      toast.success({
+        title: "Task saved",
+        description: `"${title.trim()}" has been updated.`,
+      });
       onClose();
+    } catch (e) {
+      toast.error({
+        title: "Could not save task",
+        description: e instanceof Error ? e.message : "Failed to save task",
+      });
     } finally {
       setSaving(false);
     }
@@ -133,9 +144,27 @@ function TaskDetailForm({
 
   async function handleDelete() {
     if (!canEdit) return;
-    if (!confirm("Delete this task? This cannot be undone.")) return;
-    await deleteTask(task.id);
-    onClose();
+    const confirmed = await confirm({
+      title: "Delete this task?",
+      description: "This cannot be undone.",
+      confirmLabel: "Delete task",
+      cancelLabel: "Keep task",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await deleteTask(task.id);
+      toast.success({
+        title: "Task deleted",
+        description: `"${task.title}" has been removed.`,
+      });
+      onClose();
+    } catch (e) {
+      toast.error({
+        title: "Could not delete task",
+        description: e instanceof Error ? e.message : "Failed to delete task",
+      });
+    }
   }
 
   async function handleCarryForward() {

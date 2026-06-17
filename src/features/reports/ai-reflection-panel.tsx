@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { WeekLocalStats } from "@/types/report";
 import { MarkdownContent } from "@/features/chat/markdown-content";
+import { confirm } from "@/lib/confirm";
 import { useWeeklyReport } from "./use-weekly-report";
 import {
   downloadReportJson,
@@ -78,7 +79,6 @@ export function AiReflectionPanel({ weekStart, stats }: AiReflectionPanelProps) 
   const {
     report,
     generating,
-    error,
     aiConfigured,
     generate,
     saveNotes,
@@ -92,7 +92,15 @@ export function AiReflectionPanel({ weekStart, stats }: AiReflectionPanelProps) 
 
   async function handleDelete() {
     if (!report || report.id === "generating") return;
-    if (!confirm("Delete this saved reflection?")) return;
+    const confirmed = await confirm({
+      title: "Delete saved reflection?",
+      description:
+        "This removes the AI narrative for this week. You can generate a new one anytime.",
+      confirmLabel: "Delete",
+      cancelLabel: "Keep",
+      destructive: true,
+    });
+    if (!confirmed) return;
     await remove(report.id);
   }
 
@@ -206,12 +214,6 @@ export function AiReflectionPanel({ weekStart, stats }: AiReflectionPanelProps) 
         {!isOnline && (
           <p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90">
             Offline — connect to generate AI reflections.
-          </p>
-        )}
-
-        {error && (
-          <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-400">
-            {error}
           </p>
         )}
 

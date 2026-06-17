@@ -1,4 +1,4 @@
-import { toArrayBuffer } from "./buffer.ts";
+import { toArrayBuffer } from "./buffer";
 
 const PBKDF2_ITERATIONS = 250_000;
 

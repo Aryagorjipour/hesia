@@ -21,16 +21,10 @@ export class WebRtcPeer {
   private handlers: WebRtcPeerOptions;
   private pendingCandidates: string[] = [];
   private appliedCandidates = new Set<string>();
-  private p2pSettings?: P2pSyncSettings;
 
-  private constructor(options: WebRtcPeerOptions) {
+  private constructor(options: WebRtcPeerOptions, pcConfig: RTCConfiguration) {
     this.handlers = options;
-    this.p2pSettings = options.p2pSettings;
-    this.pc = new RTCPeerConnection({
-      iceServers: [],
-      iceCandidatePoolSize: 2,
-      bundlePolicy: "max-bundle",
-    });
+    this.pc = new RTCPeerConnection(pcConfig);
 
     this.pc.onicecandidate = (event) => {
       if (!event.candidate?.candidate) return;
@@ -63,18 +57,16 @@ export class WebRtcPeer {
   }
 
   static async create(options: WebRtcPeerOptions): Promise<WebRtcPeer> {
-    const peer = new WebRtcPeer(options);
-    await peer.initIceServers();
-    return peer;
-  }
-
-  private async initIceServers() {
-    const servers = await buildIceServers(this.p2pSettings);
-    const config: RTCConfiguration = { iceServers: servers };
-    if (isTurnEnabled(this.p2pSettings)) {
-      config.iceTransportPolicy = "all";
+    const servers = await buildIceServers(options.p2pSettings);
+    const pcConfig: RTCConfiguration = {
+      iceServers: servers,
+      iceCandidatePoolSize: 2,
+      bundlePolicy: "max-bundle",
+    };
+    if (isTurnEnabled(options.p2pSettings)) {
+      pcConfig.iceTransportPolicy = "all";
     }
-    this.pc.setConfiguration(config);
+    return new WebRtcPeer(options, pcConfig);
   }
 
   setHandlers(handlers: Partial<WebRtcPeerOptions>) {

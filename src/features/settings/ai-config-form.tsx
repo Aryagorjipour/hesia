@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { CheckCircle2, XCircle, Loader2, BookOpen } from "lucide-react";
 import { db } from "@/lib/db/schema";
@@ -32,18 +32,39 @@ const DEFAULT_CONFIG: AiConfig = {
   streaming: true,
 };
 
+function configFingerprint(config: AiConfig): string {
+  const { encryptedApiKey: _key, ...rest } = config;
+  return JSON.stringify(rest);
+}
+
 export function AiConfigForm() {
   const settings = useLiveQuery(() => db.settings.get("default"));
   const saved = settings?.aiConfig ?? DEFAULT_CONFIG;
+  const syncedFingerprint = useRef<string | null>(null);
 
-  const [preset, setPreset] = useState<AiProviderPreset>(saved.providerPreset);
-  const [baseUrl, setBaseUrl] = useState(saved.baseUrl);
-  const [model, setModel] = useState(saved.model);
+  const [preset, setPreset] = useState<AiProviderPreset>(DEFAULT_CONFIG.providerPreset);
+  const [baseUrl, setBaseUrl] = useState(DEFAULT_CONFIG.baseUrl);
+  const [model, setModel] = useState(DEFAULT_CONFIG.model);
   const [apiKey, setApiKey] = useState("");
-  const [temperature, setTemperature] = useState(String(saved.temperature));
-  const [maxWeeks, setMaxWeeks] = useState(String(saved.maxContextWeeks));
-  const [streaming, setStreaming] = useState(saved.streaming);
-  const [customPrompt, setCustomPrompt] = useState(saved.customSystemPrompt ?? "");
+  const [temperature, setTemperature] = useState(String(DEFAULT_CONFIG.temperature));
+  const [maxWeeks, setMaxWeeks] = useState(String(DEFAULT_CONFIG.maxContextWeeks));
+  const [streaming, setStreaming] = useState(DEFAULT_CONFIG.streaming);
+  const [customPrompt, setCustomPrompt] = useState("");
+
+  useEffect(() => {
+    if (settings === undefined) return;
+    const cfg = settings.aiConfig ?? DEFAULT_CONFIG;
+    const fingerprint = configFingerprint(cfg);
+    if (syncedFingerprint.current === fingerprint) return;
+    syncedFingerprint.current = fingerprint;
+    setPreset(cfg.providerPreset);
+    setBaseUrl(cfg.baseUrl);
+    setModel(cfg.model);
+    setTemperature(String(cfg.temperature));
+    setMaxWeeks(String(cfg.maxContextWeeks));
+    setStreaming(cfg.streaming);
+    setCustomPrompt(cfg.customSystemPrompt ?? "");
+  }, [settings]);
 
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -58,9 +79,10 @@ export function AiConfigForm() {
 
   function applyPreset(p: AiProviderPreset) {
     setPreset(p);
+    if (p === "custom") return;
     const cfg = PROVIDER_PRESETS[p];
-    if (cfg.baseUrl) setBaseUrl(cfg.baseUrl);
-    if (cfg.defaultModel) setModel(cfg.defaultModel);
+    setBaseUrl(cfg.baseUrl);
+    setModel(cfg.defaultModel);
   }
 
   async function handleSave() {
@@ -82,7 +104,10 @@ export function AiConfigForm() {
         config.encryptedApiKey = await encryptApiKey(apiKey.trim());
       }
 
-      await db.settings.update("default", { aiConfig: config });
+      const current = await db.settings.get("default");
+      if (!current) throw new Error("Settings not found");
+      await db.settings.put({ ...current, aiConfig: config });
+      syncedFingerprint.current = configFingerprint(config);
       setApiKey("");
       setSavedOk(true);
       setTimeout(() => setSavedOk(false), 3000);
@@ -183,6 +208,14 @@ export function AiConfigForm() {
       });
       setTesting(false);
     }
+  }
+
+  if (settings === undefined) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 p-6 lg:p-8">
+        <div className="h-40 animate-pulse rounded-2xl bg-muted/30" />
+      </div>
+    );
   }
 
   return (

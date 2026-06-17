@@ -238,10 +238,9 @@ export async function buildIcePatchPacket(
   peer: WebRtcPeer,
   sessionId: string,
   deviceId: string,
+  excludeCandidates: string[] = [],
 ): Promise<string | null> {
-  const candidates = peer
-    .getPendingCandidates()
-    .filter((line) => line.trim().length > 0);
+  const candidates = peer.getFreshCandidates(excludeCandidates);
   if (candidates.length === 0) return null;
 
   const packet: IcePatchPacket = {
@@ -249,7 +248,7 @@ export async function buildIcePatchPacket(
     type: "ice-patch",
     sessionId,
     deviceId,
-    candidates: candidates.slice(0, 12),
+    candidates: candidates.slice(0, 16),
     expiresAt: createSessionExpiry(),
   };
 
@@ -266,7 +265,9 @@ export async function applyIcePatch(
     throw new Error("ICE patch session mismatch");
   }
   await peer.applyRemoteCandidates(patch.candidates);
-  await peer.refreshLocalCandidates();
+  if (!peer.isConnected()) {
+    await peer.refreshLocalCandidates();
+  }
 }
 
 async function createSenderCrypto(
@@ -325,15 +326,28 @@ export async function prepareSenderConnection(
     await peer.applyAnswer(answerSdp);
     await peer.applyRemoteCandidates(answer.signal.candidates);
 
-    if (await peer.waitForConnection(20000)) return {};
+    const alreadySent = [
+      ...offerPacket.signal.candidates,
+      ...answer.signal.candidates,
+    ];
 
-    await peer.refreshLocalCandidates();
+    if (await peer.waitForConnection(30_000)) return {};
 
-    const patch = await buildIcePatchPacket(
+    let patch = await buildIcePatchPacket(
       peer,
       offerPacket.sessionId,
       offerPacket.deviceId,
+      alreadySent,
     );
+    if (!patch) {
+      await peer.refreshLocalCandidates();
+      patch = await buildIcePatchPacket(
+        peer,
+        offerPacket.sessionId,
+        offerPacket.deviceId,
+        alreadySent,
+      );
+    }
     return {
       error:
         "Connection not ready — share the ICE patch code with the other device",
@@ -350,30 +364,43 @@ export async function prepareSenderConnection(
 export async function prepareReceiverConnection(
   state: ReceiverSessionState,
 ): Promise<SessionResult> {
-  const { peer, offerPacket, packet: answerPacket } = state;
+  const { peer, offerPacket } = state;
   try {
+    // Offer candidates are already in the remote SDP from buildAnswerPacket.
+    // Do not wait or restart ICE here — the phone may not have the answer yet.
     await peer.applyRemoteCandidates(offerPacket.signal.candidates);
-
-    if (await peer.waitForConnection(20000)) return {};
-
-    await peer.refreshLocalCandidates();
-
-    const patch = await buildIcePatchPacket(
-      peer,
-      offerPacket.sessionId,
-      answerPacket.deviceId,
-    );
-    return {
-      error:
-        "Connection not ready — share the ICE patch code with the other device",
-      needsIcePatch: true,
-      icePatchEncoded: patch ?? undefined,
-    };
+    return {};
   } catch (err) {
     return {
       error: err instanceof Error ? err.message : "Failed to prepare connection",
     };
   }
+}
+
+export async function buildReceiverIcePatch(
+  state: ReceiverSessionState,
+): Promise<string | null> {
+  const { peer, offerPacket, packet: answerPacket } = state;
+  const alreadySent = [
+    ...offerPacket.signal.candidates,
+    ...answerPacket.signal.candidates,
+  ];
+  let patch = await buildIcePatchPacket(
+    peer,
+    offerPacket.sessionId,
+    answerPacket.deviceId,
+    alreadySent,
+  );
+  if (!patch && !peer.isConnected()) {
+    await peer.refreshLocalCandidates();
+    patch = await buildIcePatchPacket(
+      peer,
+      offerPacket.sessionId,
+      answerPacket.deviceId,
+      alreadySent,
+    );
+  }
+  return patch;
 }
 
 export function runSenderTransfer(

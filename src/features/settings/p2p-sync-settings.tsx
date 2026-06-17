@@ -197,7 +197,21 @@ function P2pSyncSettingsForm({ settings }: { settings: AppSettings }) {
               checked={usePublicTurn}
               onCheckedChange={(v) => {
                 setUsePublicTurn(v);
-                void updateP2p({ usePublicTurn: v });
+                if (!v) {
+                  setTurnUrls("");
+                  setTurnUsername("");
+                  setTurnCredential("");
+                }
+                void updateP2p({
+                  usePublicTurn: v,
+                  ...(v
+                    ? {}
+                    : {
+                        turnUrls: undefined,
+                        turnUsername: undefined,
+                        turnCredential: undefined,
+                      }),
+                });
               }}
             />
           </label>

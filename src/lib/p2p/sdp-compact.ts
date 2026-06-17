@@ -5,7 +5,7 @@ export const CompactSignalSchema = z.object({
   pwd: z.string().min(22).max(64),
   fingerprint: z.string().min(64).max(64),
   setup: z.enum(["actpass", "active", "passive"]),
-  candidates: z.array(z.string()).max(12),
+  candidates: z.array(z.string()).max(16),
 });
 
 export type CompactSignal = z.infer<typeof CompactSignalSchema>;
@@ -13,6 +13,7 @@ export type CompactSignal = z.infer<typeof CompactSignalSchema>;
 export type SdpRole = "offer" | "answer";
 
 const MAX_HOST_UDP = 8;
+const MAX_HOST_TCP = 3;
 const MAX_SRFLX_UDP = 2;
 const MAX_RELAY_UDP = 2;
 const MAX_PRFLX_UDP = 2;
@@ -61,47 +62,58 @@ function parseCandidateLine(line: string): ParsedCandidate | null {
   };
 }
 
+function isRfc1918Candidate(line: string): boolean {
+  return /\s(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\./.test(line);
+}
+
 function hostCandidateScore(line: string): number {
   const parsed = parseCandidateLine(`a=candidate:${line}`);
   if (!parsed) return 0;
   let score = parsed.priority;
   if (parsed.line.includes(".local")) score -= 1_000_000;
-  if (/\s(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\./.test(parsed.line)) {
-    score += 100_000;
-  }
+  if (isRfc1918Candidate(parsed.line)) score += 100_000;
   return score;
 }
 
 function filterCandidates(lines: string[], includeRelay = false): string[] {
   const parsed = lines
     .map(parseCandidateLine)
-    .filter((c): c is ParsedCandidate => c !== null)
-    .filter((c) => c.protocol === "udp");
+    .filter((c): c is ParsedCandidate => c !== null);
 
-  const hosts = parsed
-    .filter((c) => c.type === "host")
+  const hostUdp = parsed
+    .filter((c) => c.type === "host" && c.protocol === "udp")
+    .sort((a, b) => hostCandidateScore(b.line) - hostCandidateScore(a.line));
+
+  const hasLanIp = hostUdp.some((c) => isRfc1918Candidate(c.line));
+  const hostUdpLimit = hasLanIp ? MAX_HOST_UDP : MAX_HOST_UDP + 4;
+  const hosts = hostUdp.slice(0, hostUdpLimit);
+
+  const hostTcp = parsed
+    .filter((c) => c.type === "host" && c.protocol === "tcp")
     .sort((a, b) => hostCandidateScore(b.line) - hostCandidateScore(a.line))
-    .slice(0, MAX_HOST_UDP);
+    .slice(0, MAX_HOST_TCP);
 
-  const srflx = parsed
+  const udpParsed = parsed.filter((c) => c.protocol === "udp");
+
+  const srflx = udpParsed
     .filter((c) => c.type === "srflx")
     .sort((a, b) => b.priority - a.priority)
     .slice(0, MAX_SRFLX_UDP);
 
   const relay = includeRelay
-    ? parsed
+    ? udpParsed
         .filter((c) => c.type === "relay")
         .sort((a, b) => b.priority - a.priority)
         .slice(0, MAX_RELAY_UDP)
     : [];
 
-  const prflx = parsed
+  const prflx = udpParsed
     .filter((c) => c.type === "prflx")
     .sort((a, b) => b.priority - a.priority)
     .slice(0, MAX_PRFLX_UDP);
 
   const selected = new Set(
-    [...hosts, ...srflx, ...prflx, ...relay].map((c) => c.line),
+    [...hosts, ...hostTcp, ...srflx, ...prflx, ...relay].map((c) => c.line),
   );
   return lines
     .map((line) => parseCandidateLine(line)?.line)
@@ -206,7 +218,11 @@ export function mergeCandidateSignals(
     const parsed = parseCandidateLine(
       line.startsWith("a=candidate:") ? line : `a=candidate:${line}`,
     );
-    if (parsed && parsed.protocol === "udp" && parsed.type !== "relay") {
+    if (
+      parsed &&
+      parsed.type !== "relay" &&
+      (parsed.protocol === "udp" || parsed.protocol === "tcp")
+    ) {
       merged.add(parsed.line);
     }
   }

@@ -76,7 +76,7 @@ export class WebRtcPeer {
     if (this.turnEnabled) {
       return "WebRTC connection failed — TURN relay could not connect. Try same Wi‑Fi with TURN off, or check your TURN settings.";
     }
-    return "WebRTC connection failed — keep both devices on the same Wi‑Fi, disable TURN relay in Settings, and retry.";
+    return "WebRTC connection failed — same Wi‑Fi, TURN off on both devices, allow local network in Chrome, then retry.";
   }
 
   setHandlers(handlers: Partial<WebRtcPeerOptions>) {
@@ -189,6 +189,13 @@ export class WebRtcPeer {
     return [...this.pendingCandidates];
   }
 
+  getFreshCandidates(exclude: Iterable<string> = []): string[] {
+    const sent = new Set(exclude);
+    return this.pendingCandidates.filter(
+      (line) => line.trim().length > 0 && !sent.has(line),
+    );
+  }
+
   async applyRemoteCandidates(candidates: string[]): Promise<void> {
     for (const candidate of candidates) {
       if (!candidate.trim() || this.appliedCandidates.has(candidate)) continue;
@@ -217,6 +224,7 @@ export class WebRtcPeer {
   }
 
   async refreshLocalCandidates(): Promise<void> {
+    if (this.isConnected()) return;
     if (typeof this.pc.restartIce !== "function") return;
     this.pc.restartIce();
     await this.waitForIceGathering();

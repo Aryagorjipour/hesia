@@ -51,7 +51,7 @@ export const IcePatchPacketSchema = z.object({
   type: z.literal("ice-patch"),
   sessionId: z.string().uuid(),
   deviceId: z.string().min(8).max(16),
-  candidates: z.array(z.string()).max(12),
+  candidates: z.array(z.string()).max(16),
   expiresAt: z.string().datetime(),
 });
 

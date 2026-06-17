@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -14,6 +14,7 @@ import { P2pQrScanner } from "@/components/p2p/p2p-qr-scanner";
 import {
   applyIcePatch,
   buildAnswerPacket,
+  buildReceiverIcePatch,
   prepareReceiverConnection,
   runReceiverTransfer,
   validateIncomingOffer,
@@ -27,13 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-type Step =
-  | "scan-offer"
-  | "review"
-  | "transferring"
-  | "ice-patch"
-  | "done"
-  | "error";
+type Step = "scan-offer" | "review" | "transferring" | "done" | "error";
 
 export function P2pReceiveView() {
   const [step, setStep] = useState<Step>("scan-offer");
@@ -44,10 +39,25 @@ export function P2pReceiveView() {
   const [trustDevice, setTrustDevice] = useState(true);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const receiverRef = useRef<ReceiverSessionState | null>(null);
+  const transferRunningRef = useRef(false);
   const [answerEncoded, setAnswerEncoded] = useState<string | null>(null);
   const [icePatchEncoded, setIcePatchEncoded] = useState<string | null>(null);
   const offerEncodedRef = useRef("");
   const localPasswordRef = useRef("");
+
+  useEffect(() => {
+    if (step !== "transferring") return;
+    const receiverState = receiverRef.current;
+    if (!receiverState) return;
+
+    const timer = window.setTimeout(() => {
+      void buildReceiverIcePatch(receiverState).then((patch) => {
+        if (patch) setIcePatchEncoded(patch);
+      });
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [step, answerEncoded]);
 
   async function handleOfferScan(encoded: string) {
     try {
@@ -66,54 +76,49 @@ export function P2pReceiveView() {
   }
 
   async function startReceiverTransfer(receiverState: ReceiverSessionState) {
-    const connection = await prepareReceiverConnection(receiverState);
-    if (connection.needsIcePatch) {
-      setIcePatchEncoded(connection.icePatchEncoded ?? null);
-      setStep("ice-patch");
-      toast.warning({
-        title: "Need network handshake",
-        description:
-          connection.error ??
-          "Share the ICE patch code with your phone, then scan theirs.",
+    if (transferRunningRef.current) return;
+    transferRunningRef.current = true;
+
+    try {
+      const connection = await prepareReceiverConnection(receiverState);
+      if (connection.error) {
+        toast.error({
+          title: "Connection failed",
+          description: connection.error,
+        });
+        setStep("error");
+        return;
+      }
+
+      const result = await runReceiverTransfer(
+        receiverState,
+        localPasswordRef.current,
+      );
+
+      if (result.error) {
+        toast.error({
+          title: "Sync failed",
+          description: result.error,
+        });
+        setStep("error");
+        return;
+      }
+
+      const stats = result.stats;
+      const message =
+        stats
+          ? `Applied ${stats.updated} updates (${stats.skipped} skipped, ${stats.deleted} deleted)`
+          : "Sync applied";
+      setResultMessage(message);
+      toast.success({
+        title: "Sync applied",
+        description: message,
       });
-      return;
+      setStep("done");
+      localPasswordRef.current = "";
+    } finally {
+      transferRunningRef.current = false;
     }
-
-    if (connection.error) {
-      toast.error({
-        title: "Connection failed",
-        description: connection.error,
-      });
-      setStep("error");
-      return;
-    }
-
-    const result = await runReceiverTransfer(
-      receiverState,
-      localPasswordRef.current,
-    );
-
-    if (result.error) {
-      toast.error({
-        title: "Sync failed",
-        description: result.error,
-      });
-      setStep("error");
-      return;
-    }
-
-    const stats = result.stats;
-    const message =
-      stats
-        ? `Applied ${stats.updated} updates (${stats.skipped} skipped, ${stats.deleted} deleted)`
-        : "Sync applied";
-    setResultMessage(message);
-    toast.success({
-      title: "Sync applied",
-      description: message,
-    });
-    setStep("done");
-    localPasswordRef.current = "";
   }
 
   async function handleAccept() {
@@ -138,6 +143,7 @@ export function P2pReceiveView() {
       );
       receiverRef.current = receiverState;
       setAnswerEncoded(receiverState.encoded);
+      setIcePatchEncoded(null);
       setStep("transferring");
 
       void startReceiverTransfer(receiverState);
@@ -160,7 +166,12 @@ export function P2pReceiveView() {
         encoded,
         receiverState.offerPacket.sessionId,
       );
-      await startReceiverTransfer(receiverState);
+      const patch = await buildReceiverIcePatch(receiverState);
+      if (patch) setIcePatchEncoded(patch);
+      toast.success({
+        title: "Network handshake updated",
+        description: "Keep both devices on the same Wi‑Fi while sync completes.",
+      });
     } catch (e) {
       toast.error({
         title: "ICE patch failed",
@@ -272,7 +283,7 @@ export function P2pReceiveView() {
         <div className="space-y-4">
           <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-card/50 p-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Receiving encrypted data…
+            Waiting for your phone — scan the answer code first
           </div>
           <div className="rounded-2xl border border-border bg-card/50 p-5">
             <p className="mb-4 text-center text-sm text-muted-foreground">
@@ -280,26 +291,24 @@ export function P2pReceiveView() {
             </p>
             <P2pQrDisplay value={answerEncoded} size="lg" label="Answer code" />
           </div>
-        </div>
-      ) : null}
-
-      {step === "ice-patch" ? (
-        <div className="space-y-4 rounded-2xl border border-border bg-card/50 p-5">
-          <p className="text-sm text-muted-foreground">
-            Direct connection needs one more exchange. Show this ICE patch to your
-            phone, then scan theirs below.
-          </p>
-          {answerEncoded ? (
-            <P2pQrDisplay value={answerEncoded} size="lg" label="Answer code" />
-          ) : null}
-          {icePatchEncoded ? (
-            <P2pQrDisplay value={icePatchEncoded} size="md" label="ICE patch" />
-          ) : null}
-          <P2pQrScanner
-            label="Scan or paste the ICE patch from the other device"
-            minLength={40}
-            onScan={(value) => void handleIcePatchScan(value)}
-          />
+          <div className="space-y-4 rounded-2xl border border-border bg-card/50 p-5">
+            <p className="text-sm text-muted-foreground">
+              If sync stalls after scanning, exchange these network handshake
+              codes (same Wi‑Fi, TURN off on both devices).
+            </p>
+            {icePatchEncoded ? (
+              <P2pQrDisplay value={icePatchEncoded} size="md" label="ICE patch" />
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Preparing network handshake code…
+              </p>
+            )}
+            <P2pQrScanner
+              label="Scan or paste the ICE patch from your phone"
+              minLength={40}
+              onScan={(value) => void handleIcePatchScan(value)}
+            />
+          </div>
         </div>
       ) : null}
 

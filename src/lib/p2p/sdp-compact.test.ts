@@ -47,8 +47,7 @@ describe("sdp-compact", () => {
   it("extracts and rebuilds a minimal signal", () => {
     const compact = extractCompactSignal(SAMPLE_SDP, "offer");
     assert.equal(compact.ufrag, "ABCD");
-    assert.ok(compact.candidates.length <= 8);
-    assert.ok(compact.candidates.every((line) => !line.includes(" tcp")));
+    assert.ok(compact.candidates.length <= 12);
 
     const rebuilt = rebuildSdp(compact, "offer");
     assert.match(rebuilt, /a=ice-ufrag:ABCD/);

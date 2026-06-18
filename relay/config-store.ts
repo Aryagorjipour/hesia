@@ -47,6 +47,40 @@ export function getSmtpConfig(): SmtpConfig | undefined {
   return cached.smtp;
 }
 
+export function getMcpServers(): RelayMcpServerConfig[] {
+  return cached.mcpServers ?? [];
+}
+
+function validateMcpServer(server: RelayMcpServerConfig): string | null {
+  if (!server.id?.trim()) return "Each connection needs an id";
+  if (!server.name?.trim()) return "Each connection needs a name";
+  if (!["stdio", "sse", "http"].includes(server.transport)) {
+    return `Invalid transport for ${server.name}`;
+  }
+  if (server.transport === "stdio" && !server.command?.trim()) {
+    return `${server.name} needs a command`;
+  }
+  if (
+    (server.transport === "sse" || server.transport === "http") &&
+    !server.url?.trim()
+  ) {
+    return `${server.name} needs a server address`;
+  }
+  return null;
+}
+
+export async function updateMcpServers(
+  servers: RelayMcpServerConfig[],
+): Promise<RelayMcpServerConfig[]> {
+  for (const server of servers) {
+    const err = validateMcpServer(server);
+    if (err) throw new Error(err);
+  }
+  cached = { ...cached, mcpServers: servers };
+  await persistRelayConfig();
+  return servers;
+}
+
 export function isRelaySmtpConfigured(): boolean {
   return isSmtpConfigured(cached.smtp);
 }

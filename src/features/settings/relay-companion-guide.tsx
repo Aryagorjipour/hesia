@@ -30,6 +30,10 @@ export function RelayCompanionGuide() {
               above — you should see &quot;Connected&quot;.
             </li>
             <li>Fill in your email provider and app password below.</li>
+            <li>
+              Optional: add <span className="text-foreground">AI tools</span>{" "}
+              below to let the assistant use folders on this computer.
+            </li>
           </ol>
         </div>
       </div>

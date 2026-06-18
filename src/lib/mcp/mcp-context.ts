@@ -24,9 +24,9 @@ export async function buildMcpContext(
   const enabledServers = (settings.mcpServers ?? []).filter((s) => s.enabled);
   if (enabledServers.length === 0) {
     return [
-      "## MCP tools",
-      "Relay is enabled but no MCP servers are configured.",
-      "Add servers in Settings → Integrations.",
+      "## AI tools",
+      "Companion is enabled but no tool connections are set up.",
+      "Add a connection in Settings → Integrations → AI tools.",
     ].join("\n");
   }
 
@@ -35,24 +35,23 @@ export async function buildMcpContext(
     tools = await listMcpTools(settings.relay.url);
   } catch {
     return [
-      "## MCP tools",
+      "## AI tools",
       "Hesia Companion is enabled but not running on this computer.",
-      "Start the Companion app and check Settings → Integrations.",
+      "Start Companion and check Settings → Integrations.",
     ].join("\n");
   }
 
   if (tools.length === 0) {
     return [
-      "## MCP tools",
-      `Configured servers: ${enabledServers.map((s) => s.name).join(", ")}`,
-      "No tools reported by the relay bridge yet.",
+      "## AI tools",
+      `Connections: ${enabledServers.map((s) => s.name).join(", ")}`,
+      "No tools available yet — test each connection in Settings → Integrations.",
     ].join("\n");
   }
 
   const lines = [
-    "## MCP tools (via local relay)",
-    `Relay: ${settings.relay.url}`,
-    `Servers: ${enabledServers.map((s) => s.name).join(", ")}`,
+    "## AI tools (via Hesia Companion on this computer)",
+    `Connections: ${enabledServers.map((s) => s.name).join(", ")}`,
     "",
   ];
 

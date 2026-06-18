@@ -7,12 +7,15 @@ import {
 } from "./mcp-bridge";
 import { isSmtpConfigured, sendMail, resetSmtpTransporter } from "./smtp";
 import {
+  getMcpServers,
   getRelayConfig,
   getSmtpConfig,
   isRelaySmtpConfigured,
   loadRelayConfig,
   toPublicSmtpConfig,
+  updateMcpServers,
   updateSmtpConfig,
+  type RelayMcpServerConfig,
 } from "./config-store";
 import { verifySmtpConnection } from "./smtp-test";
 
@@ -21,7 +24,6 @@ await loadRelayConfig();
 const config = getRelayConfig();
 const host = config.host ?? "127.0.0.1";
 const port = config.port ?? 8787;
-const mcpServers = config.mcpServers ?? [];
 
 if (host !== "127.0.0.1" && host !== "localhost") {
   console.error(
@@ -56,7 +58,7 @@ app.get("/health", (c) =>
     version: "0.1.0",
     smtpConfigured: isRelaySmtpConfigured(),
     mcpBridgeReady: true,
-    mcpServerCount: mcpServers.filter((s) => s.enabled !== false).length,
+    mcpServerCount: getMcpServers().filter((s) => s.enabled !== false).length,
   }),
 );
 
@@ -183,8 +185,37 @@ app.post("/email/send", async (c) => {
   }
 });
 
+app.get("/mcp/servers", (c) =>
+  c.json({
+    ok: true,
+    servers: getMcpServers(),
+  }),
+);
+
+app.put("/mcp/servers", async (c) => {
+  const body = await c.req.json<{ servers?: RelayMcpServerConfig[] }>();
+  if (!Array.isArray(body.servers)) {
+    return c.json({ ok: false, error: "servers array is required" }, 400);
+  }
+
+  try {
+    await shutdownBridge();
+    const saved = await updateMcpServers(body.servers);
+    return c.json({ ok: true, servers: saved });
+  } catch (err) {
+    return c.json(
+      {
+        ok: false,
+        error:
+          err instanceof Error ? err.message : "Could not save AI tool connections",
+      },
+      400,
+    );
+  }
+});
+
 app.get("/mcp/tools", async (c) => {
-  const tools = await listAllTools(mcpServers);
+  const tools = await listAllTools(getMcpServers());
   return c.json({ tools });
 });
 
@@ -200,7 +231,7 @@ app.post("/mcp/call", async (c) => {
   }
 
   const result = await callBridgeTool(
-    mcpServers,
+    getMcpServers(),
     getSmtpConfig(),
     body.serverId,
     body.name,

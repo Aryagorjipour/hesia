@@ -4,6 +4,7 @@ import {
   type SmtpFormValues,
 } from "@/types/smtp";
 import { buildFromAddress } from "@/lib/email/smtp-presets";
+import { platformInvoke } from "@/lib/platform/invoke";
 
 async function relayJson<T>(
   relayUrl: string,
@@ -35,7 +36,11 @@ async function relayJson<T>(
 export async function fetchRelaySmtpConfig(
   relayUrl: string,
 ): Promise<{ configured: boolean; config: PublicSmtpConfig | null }> {
-  const data = await relayJson<unknown>(relayUrl, "/smtp/config");
+  const data = await platformInvoke<unknown>(
+    "smtp_config_get",
+    {},
+    () => relayJson<unknown>(relayUrl, "/smtp/config"),
+  );
   const parsed = SmtpConfigResponseSchema.safeParse(data);
   if (!parsed.success) {
     return { configured: false, config: null };
@@ -50,21 +55,31 @@ export async function saveRelaySmtpConfig(
   relayUrl: string,
   values: SmtpFormValues,
 ): Promise<{ configured: boolean; config: PublicSmtpConfig | null }> {
-  const data = await relayJson<{
+  const invokeArgs = {
+    host: values.host.trim(),
+    port: values.port,
+    secure: values.secure,
+    user: values.user.trim(),
+    pass: values.pass,
+    from: buildFromAddress(values.fromName, values.user),
+  };
+  const data = await platformInvoke<{
     ok: boolean;
     configured: boolean;
     config: PublicSmtpConfig | null;
-  }>(relayUrl, "/smtp/config", {
-    method: "PUT",
-    body: JSON.stringify({
-      host: values.host.trim(),
-      port: values.port,
-      secure: values.secure,
-      user: values.user.trim(),
-      pass: values.pass,
-      from: buildFromAddress(values.fromName, values.user),
-    }),
-  });
+  }>(
+    "smtp_config_put",
+    invokeArgs,
+    () =>
+      relayJson<{
+        ok: boolean;
+        configured: boolean;
+        config: PublicSmtpConfig | null;
+      }>(relayUrl, "/smtp/config", {
+        method: "PUT",
+        body: JSON.stringify(invokeArgs),
+      }),
+  );
 
   return {
     configured: data.configured,
@@ -76,10 +91,13 @@ export async function testRelaySmtpConnection(
   relayUrl: string,
 ): Promise<{ ok: boolean; message?: string; error?: string }> {
   try {
-    const data = await relayJson<{ ok: boolean; message?: string }>(
-      relayUrl,
-      "/smtp/test",
-      { method: "POST" },
+    const data = await platformInvoke<{ ok: boolean; message?: string }>(
+      "smtp_test",
+      {},
+      () =>
+        relayJson<{ ok: boolean; message?: string }>(relayUrl, "/smtp/test", {
+          method: "POST",
+        }),
     );
     return { ok: data.ok, message: data.message };
   } catch (err) {

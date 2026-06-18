@@ -4,6 +4,7 @@ import { withBasePath } from "@/lib/app/site";
 import type { AppSettings } from "@/types/settings";
 import { formatWeekStartISO } from "@/lib/stats/week-aggregator";
 import { normalizeWeekStartsOn } from "@/lib/utils/week-config";
+import { platformInvoke } from "@/lib/platform/invoke";
 
 const NOTIFIED_KEY = "hesia-reflection-notified-week";
 
@@ -47,20 +48,30 @@ export function markReflectionNotified(
 }
 
 export function showReflectionNotification(): void {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-
-  const notification = new Notification("Hesia — weekly reflection", {
-    body: "A gentle nudge to review your week and generate a reflection.",
-    icon: BRAND.pwa192,
-    tag: "hesia-weekly-reflection",
-  });
-
-  notification.onclick = () => {
-    window.focus();
-    window.location.href = withBasePath("/reports");
-    notification.close();
-  };
-
   markReflectionNotified();
+
+  void platformInvoke(
+    "show_notification",
+    {
+      title: "Hesia — weekly reflection",
+      body: "A gentle nudge to review your week and generate a reflection.",
+    },
+    () => {
+      if (typeof window === "undefined" || !("Notification" in window)) {
+        return Promise.resolve();
+      }
+      if (Notification.permission !== "granted") return Promise.resolve();
+      const notification = new Notification("Hesia — weekly reflection", {
+        body: "A gentle nudge to review your week and generate a reflection.",
+        icon: BRAND.pwa192,
+        tag: "hesia-weekly-reflection",
+      });
+      notification.onclick = () => {
+        window.focus();
+        window.location.href = withBasePath("/reports");
+        notification.close();
+      };
+      return Promise.resolve();
+    },
+  );
 }

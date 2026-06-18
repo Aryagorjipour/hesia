@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capabilities for Hesia desktop","local":true,"windows":["main"],"permissions":["core:default","core:window:allow-start-dragging","core:window:allow-set-focus","store:allow-get","store:allow-set","notification:allow-request-permission","notification:allow-notify","notification:allow-show"]}}

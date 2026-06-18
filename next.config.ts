@@ -7,20 +7,22 @@ const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const repoSlug = process.env.NEXT_PUBLIC_REPO_NAME ?? "hesia";
 const isGithubPages = process.env.GITHUB_PAGES === "true";
+const isTauriDesktop = process.env.TAURI_BUILD === "true";
 const basePath = isGithubPages ? `/${repoSlug}` : "";
 
 const withSerwist = withSerwistInit({
   swSrc: "src/sw.ts",
   swDest: "public/sw.js",
   disable:
-    process.env.NODE_ENV === "development" &&
-    process.env.SERWIST_DEV !== "1",
+    isTauriDesktop ||
+    (process.env.NODE_ENV === "development" &&
+      process.env.SERWIST_DEV !== "1"),
 });
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: projectRoot,
   reactStrictMode: true,
-  ...(isGithubPages
+  ...(isGithubPages || isTauriDesktop
     ? { output: "export" as const }
     : { output: "standalone" as const }),
   basePath,

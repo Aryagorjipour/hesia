@@ -1,4 +1,6 @@
-export type InstallBlockReason = "insecure" | "no_service_worker";
+export type InstallBlockReason = "insecure" | "no_service_worker" | "desktop";
+
+import { isDesktop } from "@/lib/platform";
 
 export function isSecureInstallContext() {
   if (typeof window === "undefined") return false;
@@ -14,6 +16,7 @@ export function isLocalDevWithoutSw() {
 
 export function getInstallBlockReason(): InstallBlockReason | null {
   if (typeof window === "undefined") return null;
+  if (isDesktop()) return "desktop";
   if (!isSecureInstallContext()) return "insecure";
   if (isLocalDevWithoutSw()) return "no_service_worker";
   return null;

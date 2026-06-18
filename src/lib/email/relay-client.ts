@@ -6,6 +6,7 @@ import {
   type McpToolCallResult,
   type RelayHealth,
 } from "@/types/mcp";
+import { platformInvoke } from "@/lib/platform/invoke";
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
@@ -43,7 +44,11 @@ export async function checkRelayHealth(
   relayUrl: string,
 ): Promise<RelayHealth> {
   try {
-    const data = await relayFetch<unknown>(relayUrl, "/health");
+    const data = await platformInvoke<unknown>(
+      "relay_health",
+      {},
+      () => relayFetch<unknown>(relayUrl, "/health"),
+    );
     const parsed = RelayHealthSchema.safeParse(data);
     return parsed.success
       ? parsed.data
@@ -65,14 +70,20 @@ export async function sendEmailViaRelay(
   payload: SendEmailPayload,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   try {
-    const data = await relayFetch<{
+    const data = await platformInvoke<{
       ok: boolean;
       messageId?: string;
       error?: string;
-    }>(relayUrl, "/email/send", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+    }>(
+      "smtp_send",
+      payload as unknown as Record<string, unknown>,
+      () =>
+        relayFetch<{ ok: boolean; messageId?: string; error?: string }>(
+          relayUrl,
+          "/email/send",
+          { method: "POST", body: JSON.stringify(payload) },
+        ),
+    );
     return data;
   } catch (err) {
     return {
@@ -84,9 +95,11 @@ export async function sendEmailViaRelay(
 
 export async function listMcpTools(relayUrl: string): Promise<McpTool[]> {
   try {
-    const data = await relayFetch<{ tools: unknown[] }>(relayUrl, "/mcp/tools", {
-      method: "GET",
-    });
+    const data = await platformInvoke<{ tools: unknown[] }>(
+      "mcp_tools",
+      {},
+      () => relayFetch<{ tools: unknown[] }>(relayUrl, "/mcp/tools"),
+    );
     const tools: McpTool[] = [];
     for (const raw of data.tools ?? []) {
       const parsed = McpToolSchema.safeParse(raw);
@@ -105,10 +118,15 @@ export async function callMcpTool(
   args: Record<string, unknown> = {},
 ): Promise<McpToolCallResult> {
   try {
-    const data = await relayFetch<unknown>(relayUrl, "/mcp/call", {
-      method: "POST",
-      body: JSON.stringify({ serverId, name, arguments: args }),
-    });
+    const data = await platformInvoke<unknown>(
+      "mcp_call",
+      { serverId, name, arguments: args },
+      () =>
+        relayFetch<unknown>(relayUrl, "/mcp/call", {
+          method: "POST",
+          body: JSON.stringify({ serverId, name, arguments: args }),
+        }),
+    );
     const parsed = McpToolCallResultSchema.safeParse(data);
     if (parsed.success) return parsed.data;
     return {

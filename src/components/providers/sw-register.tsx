@@ -2,9 +2,11 @@
 
 import { useEffect } from "react";
 import { withBasePath } from "@/lib/app/site";
+import { isDesktop } from "@/lib/platform";
 
 const shouldRegister =
   typeof window !== "undefined" &&
+  !isDesktop() &&
   "serviceWorker" in navigator &&
   (process.env.NODE_ENV === "production" ||
     process.env.NEXT_PUBLIC_SERWIST_DEV === "1");

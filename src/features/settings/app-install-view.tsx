@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Download,
   Menu,
@@ -8,6 +9,7 @@ import {
   Smartphone,
   Check,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   FirefoxDesktopSteps,
@@ -17,9 +19,109 @@ import {
 import { useInstallPrompt } from "@/lib/hooks/use-install-prompt";
 import { APP_META } from "@/lib/app/meta";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { OfflineDiagnosticsPanel } from "./offline-diagnostics-panel";
+import { DesktopUpdatePanel } from "./desktop-update-panel";
+import { isDesktop } from "@/lib/platform";
+import { db } from "@/lib/db/schema";
+import { useLiveQuery } from "dexie-react-hooks";
+
+function DesktopAppTab() {
+  const [version, setVersion] = useState<string | null>(null);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const settings = useLiveQuery(() => db.settings.get("default"));
+
+  useEffect(() => {
+    import("@tauri-apps/api/core").then(({ invoke }) => {
+      void invoke<string>("get_app_version").then(setVersion).catch(() => {});
+      void invoke<boolean>("get_autostart")
+        .then(setAutostartEnabled)
+        .catch(() => {});
+    });
+  }, []);
+
+  async function toggleAutostart(enabled: boolean) {
+    setAutostartEnabled(enabled);
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("set_autostart", { enabled }).catch(() => {
+      setAutostartEnabled(!enabled);
+    });
+  }
+
+  async function toggleCloseToTray(enabled: boolean) {
+    if (!settings) return;
+    await db.settings.update("default", { desktopCloseToTray: enabled });
+  }
+
+  return (
+    <div className="space-y-4 p-4 sm:p-6 lg:p-8">
+      <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">App version</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {version ? `v${version}` : "—"}
+            </p>
+          </div>
+          <RefreshCw className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <Label
+            htmlFor="autostart-toggle"
+            className="min-w-0 cursor-pointer space-y-0.5"
+          >
+            <p className="text-sm font-medium text-foreground">
+              Launch at login
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Start Hesia automatically when you log in
+            </p>
+          </Label>
+          <Switch
+            id="autostart-toggle"
+            checked={autostartEnabled}
+            onCheckedChange={(v) => void toggleAutostart(v)}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <Label
+            htmlFor="tray-toggle"
+            className="min-w-0 cursor-pointer space-y-0.5"
+          >
+            <p className="text-sm font-medium text-foreground">
+              Close to tray
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Keep Hesia running in the system tray when the window is closed
+            </p>
+          </Label>
+          <Switch
+            id="tray-toggle"
+            checked={settings?.desktopCloseToTray ?? false}
+            onCheckedChange={(v) => void toggleCloseToTray(v)}
+          />
+        </div>
+      </div>
+
+      <DesktopUpdatePanel currentVersion={version} />
+    </div>
+  );
+}
 
 export function AppInstallView() {
+  if (isDesktop()) {
+    return <DesktopAppTab />;
+  }
+
+  return <WebInstallView />;
+}
+
+function WebInstallView() {
   const {
     canInstall,
     isIOS,

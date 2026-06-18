@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot, Sparkles, PenLine } from "lucide-react";
 import { useUIStore } from "@/stores/ui-store";
 import { db } from "@/lib/db/schema";
 import {
@@ -33,6 +33,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 
@@ -95,6 +96,9 @@ function QuickLogForm({
   const settings = useLiveQuery(() => db.settings.get("default"));
   const aiConfigured = isAiConfiguredForFeature(settings, "quick-log");
 
+  const [useAiMode, setUseAiMode] = useState(false);
+  const aiMode = aiConfigured && useAiMode;
+
   const allowedStatuses = useMemo(
     () => DEFAULT_COLUMNS.filter((s) => permissions.canAdd(s)),
     [permissions],
@@ -104,15 +108,27 @@ function QuickLogForm({
     ? initialStatus
     : allowedStatuses[0] ?? "todo";
 
-  const [prompt, setPrompt] = useState("");
+  const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function clampStatus(next: TaskStatus): TaskStatus {
     return allowedStatuses.includes(next) ? next : defaultStatus;
   }
 
-  function buildLocalDraft(text: string): AiTaskDraft {
-    const inference = inferFromQuickLog(text);
+  function buildLocalDraft(input: string): AiTaskDraft {
+    if (!aiMode) {
+      return {
+        title: input.trim(),
+        status: defaultStatus,
+        isPlanned: false,
+        tags: [],
+        durationMinutes: undefined,
+        category: undefined,
+        description: undefined,
+        notes: undefined,
+      };
+    }
+    const inference = inferFromQuickLog(input);
     const knownTags = inference.suggestedTags.filter((name) =>
       tags.some((t) => t.name === name),
     );
@@ -123,8 +139,8 @@ function QuickLogForm({
         : undefined;
 
     return {
-      title: buildTitleFromQuickLog(text),
-      notes: text,
+      title: buildTitleFromQuickLog(input),
+      notes: input,
       status: clampStatus(inference.status),
       isPlanned: inference.isPlanned,
       tags: knownTags,
@@ -133,28 +149,28 @@ function QuickLogForm({
     };
   }
 
-  async function extractDraft(text: string): Promise<AiTaskDraft> {
-    if (aiConfigured) {
+  async function extractDraft(input: string): Promise<AiTaskDraft> {
+    if (aiMode) {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         throw new Error("AI needs an internet connection");
       }
-      return generateTaskFromQuickLog(text, settings, {
+      return generateTaskFromQuickLog(input, settings, {
         boardDate,
         allowedStatuses,
         tagNames: tags.map((t) => t.name),
         categoryNames: categories.map((c) => c.name),
       });
     }
-    return buildLocalDraft(text);
+    return buildLocalDraft(input);
   }
 
-  async function handleLogIt() {
-    const text = prompt.trim();
-    if (!text) return;
+  async function handleSubmit() {
+    const input = text.trim();
+    if (!input) return;
 
     setSubmitting(true);
     try {
-      const draft = await extractDraft(text);
+      const draft = await extractDraft(input);
       await persistQuickLogDraft(draft, boardDate);
       toast.success({
         title: "Task created",
@@ -163,7 +179,7 @@ function QuickLogForm({
       onClose();
     } catch (err) {
       toast.error({
-        title: aiConfigured ? "AI could not log task" : "Could not log task",
+        title: aiMode ? "AI could not create task" : "Could not create task",
         description:
           err instanceof Error ? err.message : "Something went wrong",
       });
@@ -173,47 +189,111 @@ function QuickLogForm({
   }
 
   function askInChat() {
-    const text = prompt.trim();
-    if (!text) return;
+    const input = text.trim();
+    if (!input) return;
     setPendingChatDraft(
-      `I want to log this on my board: "${text}". Ask one short follow-up if needed, then draft a [TASK DRAFT].`,
+      `I want to log this on my board: "${input}". Ask one short follow-up if needed, then draft a [TASK DRAFT].`,
     );
     onClose();
     router.push("/chat");
   }
 
-  const promptHelp = aiConfigured
-    ? "One prompt — AI extracts title, column, planned status, duration, tags, and category, then creates the task."
-    : "One prompt — we infer column, planned status, duration, and tags from your words.";
+  if (aiMode) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-3 rounded-2xl border border-accent/25 bg-accent/5 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2">
+              <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="quick-log-prompt" className="text-foreground">
+                  What happened?
+                </Label>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  One prompt — AI extracts title, column, planned status,
+                  duration, tags, and category.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 text-xs"
+              onClick={() => setUseAiMode(false)}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Simple
+            </Button>
+          </div>
+          <Textarea
+            id="quick-log-prompt"
+            placeholder='e.g. "Just finished a planned 25min yoga session" or "Need 2h on Q3 content calendar tomorrow"'
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            autoFocus
+            disabled={submitting}
+          />
+        </div>
 
-  const promptPlaceholder = aiConfigured
-    ? 'e.g. "Just finished a planned 25min yoga session" or "Need to spend 2 hours on Q3 content calendar tomorrow"'
-    : 'e.g. "Just finished 25min yoga" or "Plan Q3 content calendar"';
+        <div className="flex gap-3">
+          <Button variant="ghost" className="flex-1" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={() => void handleSubmit()}
+            disabled={!text.trim() || submitting}
+          >
+            <Sparkles className="h-4 w-4" />
+            {submitting ? "Creating…" : "Log it"}
+          </Button>
+        </div>
+
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={askInChat}
+            disabled={!text.trim() || submitting}
+          >
+            Ask in Companion instead
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-2xl border border-accent/25 bg-accent/5 p-4">
-        <div className="flex items-start gap-2">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="task-title">Task title</Label>
           {aiConfigured && (
-            <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto py-0.5 text-xs"
+              onClick={() => setUseAiMode(true)}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Use AI
+            </Button>
           )}
-          <div className="min-w-0 space-y-1">
-            <Label htmlFor="quick-log-prompt" className="text-foreground">
-              What happened?
-            </Label>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {promptHelp}
-            </p>
-          </div>
         </div>
-        <Textarea
-          id="quick-log-prompt"
-          placeholder={promptPlaceholder}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={4}
+        <Input
+          id="task-title"
+          placeholder="What needs to be done?"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           autoFocus
           disabled={submitting}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void handleSubmit();
+            }
+          }}
         />
       </div>
 
@@ -223,26 +303,12 @@ function QuickLogForm({
         </Button>
         <Button
           className="flex-1"
-          onClick={() => void handleLogIt()}
-          disabled={!prompt.trim() || submitting}
+          onClick={() => void handleSubmit()}
+          disabled={!text.trim() || submitting}
         >
-          {aiConfigured && <Sparkles className="h-4 w-4" />}
-          {submitting ? "Logging…" : "Log it"}
+          {submitting ? "Adding…" : "Add task"}
         </Button>
       </div>
-
-      {aiConfigured && (
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={askInChat}
-            disabled={!prompt.trim() || submitting}
-          >
-            Ask in Companion instead
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

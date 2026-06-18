@@ -5,6 +5,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db/schema";
 import { applyDocumentLocale, isRtl } from "@/lib/i18n/rtl";
 import { DEFAULT_LOCALE_SETTINGS } from "@/lib/i18n/locale-defaults";
+import { isDesktop } from "@/lib/platform";
 import type { LocaleSettings } from "@/types/settings";
 
 interface LocaleContextValue {
@@ -39,6 +40,13 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
 
   useEffect(() => {
     applyDocumentLocale(locale);
+    if (isDesktop()) {
+      import("@tauri-apps/api/core").then(({ invoke }) =>
+        invoke("update_tray_locale", {
+          locale: locale.calendar === "jalali" ? "fa" : "en",
+        }).catch(() => {}),
+      );
+    }
   }, [locale]);
 
   return (

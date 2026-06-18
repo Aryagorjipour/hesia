@@ -7,6 +7,7 @@ import {
 } from "@/lib/utils/install-eligibility";
 
 export function InstallBlockNotice({ reason }: { reason: InstallBlockReason }) {
+  if (reason === "desktop") return null;
   return (
     <p className="text-xs leading-relaxed text-muted-foreground">
       {getInstallBlockMessage(reason, APP_META.siteUrl)}{" "}

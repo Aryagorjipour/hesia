@@ -9,6 +9,7 @@ const env = {
   ...process.env,
   TAURI_BUILD: "true",
   NEXT_PUBLIC_BASE_PATH: "",
+  APPIMAGE_EXTRACT_AND_RUN: "1",
   // NEXT_PUBLIC_REPO_NAME and NEXT_PUBLIC_SITE_URL are intentionally not overridden:
   // basePath resolves to "" because GITHUB_PAGES is unset.
   // SITE_URL falls back to the GitHub Pages URL, which is correct for "Open live app" links.

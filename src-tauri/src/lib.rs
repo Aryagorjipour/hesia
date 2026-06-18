@@ -30,7 +30,7 @@ pub fn run() {
         .setup(|app| {
             tray::setup_tray(app.handle())?;
             let relay_handle = app.handle().clone();
-            tokio::spawn(relay::start(relay_handle));
+            tauri::async_runtime::spawn(relay::start(relay_handle));
             Ok(())
         })
         .run(tauri::generate_context!())

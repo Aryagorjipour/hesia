@@ -2,38 +2,46 @@
 
 import { useState } from "react";
 import { LayoutGrid, Plus } from "lucide-react";
-import { createTask } from "@/lib/db/mutations/tasks";
+import { addTaskDraftToBoard } from "@/lib/chat/task-draft-actions";
 import type { AiTaskDraft } from "@/lib/ai/structured-output";
 import { COLUMN_LABELS } from "@/types/task";
-import { todayISO } from "@/lib/utils/board-dates";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
+
+export type TaskDraftCardStatus = "pending" | "added" | "dismissed";
 
 interface TaskDraftCardProps {
   draft: AiTaskDraft;
   className?: string;
+  status?: TaskDraftCardStatus;
+  onStatusChange?: (status: "added" | "dismissed") => void | Promise<void>;
 }
 
-export function TaskDraftCard({ draft, className }: TaskDraftCardProps) {
+export function TaskDraftCard({
+  draft,
+  className,
+  status: persistedStatus = "pending",
+  onStatusChange,
+}: TaskDraftCardProps) {
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [localStatus, setLocalStatus] = useState<TaskDraftCardStatus>("pending");
+
+  const status = onStatusChange ? persistedStatus : localStatus;
+  const added = status === "added";
+  const dismissed = status === "dismissed";
+
+  if (dismissed) return null;
 
   async function handleAdd() {
     if (added) return;
     setAdding(true);
     try {
-      await createTask({
-        title: draft.title,
-        description: draft.description,
-        status: draft.status === "archived" ? "todo" : draft.status,
-        isPlanned: draft.isPlanned,
-        tags: draft.tags,
-        category: draft.category,
-        durationMinutes: draft.durationMinutes,
-        boardDate:
-          draft.status === "inbox" ? undefined : todayISO(),
-      });
-      setAdded(true);
+      await addTaskDraftToBoard(draft);
+      if (onStatusChange) {
+        await onStatusChange("added");
+      } else {
+        setLocalStatus("added");
+      }
     } finally {
       setAdding(false);
     }

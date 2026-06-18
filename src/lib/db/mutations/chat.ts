@@ -90,6 +90,75 @@ export async function updateChatSession(
   });
 }
 
+function setIndexedState<T>(
+  current: (T | undefined)[] | undefined,
+  index: number,
+  value: T,
+): (T | undefined)[] {
+  const next = [...(current ?? [])];
+  while (next.length <= index) {
+    next.push(undefined);
+  }
+  next[index] = value;
+  return next;
+}
+
+export async function patchChatMessageMetadata(
+  messageId: string,
+  patch: Partial<NonNullable<ChatMessage["metadata"]>>,
+): Promise<void> {
+  const message = await db.chatMessages.get(messageId);
+  if (!message) return;
+
+  await db.chatMessages.update(messageId, {
+    metadata: { ...message.metadata, ...patch },
+  });
+}
+
+export async function setChatActionState(
+  messageId: string,
+  index: number,
+  state: "completed" | "dismissed",
+): Promise<void> {
+  const message = await db.chatMessages.get(messageId);
+  if (!message) return;
+
+  await patchChatMessageMetadata(messageId, {
+    actionStates: setIndexedState(message.metadata?.actionStates, index, state),
+  });
+}
+
+export async function setChatTaskDraftState(
+  messageId: string,
+  index: number,
+  state: "added" | "dismissed",
+): Promise<void> {
+  const message = await db.chatMessages.get(messageId);
+  if (!message) return;
+
+  await patchChatMessageMetadata(messageId, {
+    taskDraftStates: setIndexedState(
+      message.metadata?.taskDraftStates,
+      index,
+      state,
+    ),
+  });
+}
+
+export async function setChatActionStates(
+  messageId: string,
+  states: NonNullable<ChatMessage["metadata"]>["actionStates"],
+): Promise<void> {
+  await patchChatMessageMetadata(messageId, { actionStates: states });
+}
+
+export async function setChatTaskDraftStates(
+  messageId: string,
+  states: NonNullable<ChatMessage["metadata"]>["taskDraftStates"],
+): Promise<void> {
+  await patchChatMessageMetadata(messageId, { taskDraftStates: states });
+}
+
 export async function maybeUpdateSessionTitleFromMessage(
   sessionId: string,
   userText: string,

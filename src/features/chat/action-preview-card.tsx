@@ -17,10 +17,13 @@ import { toast } from "@/lib/toast";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
+export type ActionCardStatus = "pending" | "completed" | "dismissed";
+
 interface ActionPreviewCardProps {
   action: HesiaAction;
   className?: string;
-  onDismiss?: () => void;
+  status?: ActionCardStatus;
+  onStatusChange?: (status: "completed" | "dismissed") => void | Promise<void>;
 }
 
 const ACTION_ICONS = {
@@ -32,13 +35,17 @@ const ACTION_ICONS = {
 export function ActionPreviewCard({
   action,
   className,
-  onDismiss,
+  status: persistedStatus = "pending",
+  onStatusChange,
 }: ActionPreviewCardProps) {
   const preview = buildActionPreview(action);
   const Icon = ACTION_ICONS[action.type];
   const [executing, setExecuting] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [localStatus, setLocalStatus] = useState<ActionCardStatus>("pending");
+
+  const status = onStatusChange ? persistedStatus : localStatus;
+  const completed = status === "completed";
+  const dismissed = status === "dismissed";
 
   if (dismissed) return null;
 
@@ -49,7 +56,11 @@ export function ActionPreviewCard({
     try {
       const result = await executeConfirmedAction(action);
       if (result.ok) {
-        setCompleted(true);
+        if (onStatusChange) {
+          await onStatusChange("completed");
+        } else {
+          setLocalStatus("completed");
+        }
         toast.success({
           title: "Done",
           description: result.message,
@@ -65,10 +76,16 @@ export function ActionPreviewCard({
     }
   }
 
-  function handleDismiss() {
-    setDismissed(true);
-    onDismiss?.();
+  async function handleDismiss() {
+    if (onStatusChange) {
+      await onStatusChange("dismissed");
+    } else {
+      setLocalStatus("dismissed");
+    }
   }
+
+  const doneLabel =
+    action.type === "create_task" ? "Added to board" : "Done";
 
   return (
     <div
@@ -115,7 +132,7 @@ export function ActionPreviewCard({
         >
           <Check className="h-3.5 w-3.5" />
           {completed
-            ? "Done"
+            ? doneLabel
             : executing
               ? "Working…"
               : preview.executeLabel}
@@ -125,7 +142,7 @@ export function ActionPreviewCard({
             size="sm"
             variant="ghost"
             className="gap-1.5"
-            onClick={handleDismiss}
+            onClick={() => void handleDismiss()}
             disabled={executing}
             aria-label="Dismiss action"
           >

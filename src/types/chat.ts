@@ -26,6 +26,14 @@ export const ChatMessageSchema = z.object({
       model: z.string().optional(),
       tokens: z.number().optional(),
       actions: z.array(HesiaActionSchema).optional(),
+      /** UI resolution per index in `actions` */
+      actionStates: z
+        .array(z.enum(["completed", "dismissed"]).optional())
+        .optional(),
+      /** UI resolution per index in parsed `[TASK DRAFT]` blocks */
+      taskDraftStates: z
+        .array(z.enum(["added", "dismissed"]).optional())
+        .optional(),
     })
     .optional(),
 });

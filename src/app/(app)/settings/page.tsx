@@ -23,6 +23,7 @@ import {
   normalizeWeekStartsOn,
 } from "@/lib/utils/week-config";
 import { cn } from "@/lib/utils/cn";
+import { isDesktop } from "@/lib/platform";
 
 const SETTINGS_LINKS = [
   {
@@ -120,7 +121,9 @@ export default function SettingsPage() {
             Preferences
           </p>
           <div className="space-y-2">
-            {SETTINGS_LINKS.map(({ href, label, description, icon: Icon }) => (
+            {SETTINGS_LINKS.filter(({ href }) =>
+              href !== "/settings/integrations" || isDesktop()
+            ).map(({ href, label, description, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}

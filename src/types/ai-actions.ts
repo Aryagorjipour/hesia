@@ -5,6 +5,9 @@ export const HESIA_ACTIONS_VERSION = "hesia-actions/v1" as const;
 
 export const HesiaActionTypeSchema = z.enum([
   "create_task",
+  "update_task",
+  "create_tag",
+  "create_category",
   "draft_report_email",
   "create_calendar_event",
 ]);
@@ -23,6 +26,53 @@ export const CreateTaskPayloadSchema = z.object({
 });
 
 export type CreateTaskPayload = z.infer<typeof CreateTaskPayloadSchema>;
+
+export const UpdateTaskPayloadSchema = z
+  .object({
+    taskId: z.string().uuid(),
+    title: z.string().min(1).optional(),
+    description: z.string().optional(),
+    notes: z.string().optional(),
+    status: TaskStatusSchema.optional(),
+    isPlanned: z.boolean().optional(),
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+    durationMinutes: z.number().int().positive().optional(),
+  })
+  .refine(
+    (data) =>
+      data.title !== undefined ||
+      data.description !== undefined ||
+      data.notes !== undefined ||
+      data.status !== undefined ||
+      data.isPlanned !== undefined ||
+      data.tags !== undefined ||
+      data.category !== undefined ||
+      data.durationMinutes !== undefined,
+    { message: "At least one field to update is required" },
+  );
+
+export type UpdateTaskPayload = z.infer<typeof UpdateTaskPayloadSchema>;
+
+export const CreateTagPayloadSchema = z.object({
+  name: z.string().min(1).max(60),
+  colorHex: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+});
+
+export type CreateTagPayload = z.infer<typeof CreateTagPayloadSchema>;
+
+export const CreateCategoryPayloadSchema = z.object({
+  name: z.string().min(1).max(60),
+  colorHex: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
+});
+
+export type CreateCategoryPayload = z.infer<typeof CreateCategoryPayloadSchema>;
 
 export const DraftReportEmailPayloadSchema = z.object({
   subject: z.string().min(1),
@@ -56,6 +106,24 @@ export const CreateTaskActionSchema = z.object({
   payload: CreateTaskPayloadSchema,
 });
 
+export const UpdateTaskActionSchema = z.object({
+  type: z.literal("update_task"),
+  version: z.literal(HESIA_ACTIONS_VERSION),
+  payload: UpdateTaskPayloadSchema,
+});
+
+export const CreateTagActionSchema = z.object({
+  type: z.literal("create_tag"),
+  version: z.literal(HESIA_ACTIONS_VERSION),
+  payload: CreateTagPayloadSchema,
+});
+
+export const CreateCategoryActionSchema = z.object({
+  type: z.literal("create_category"),
+  version: z.literal(HESIA_ACTIONS_VERSION),
+  payload: CreateCategoryPayloadSchema,
+});
+
 export const DraftReportEmailActionSchema = z.object({
   type: z.literal("draft_report_email"),
   version: z.literal(HESIA_ACTIONS_VERSION),
@@ -70,6 +138,9 @@ export const CreateCalendarEventActionSchema = z.object({
 
 export const HesiaActionSchema = z.discriminatedUnion("type", [
   CreateTaskActionSchema,
+  UpdateTaskActionSchema,
+  CreateTagActionSchema,
+  CreateCategoryActionSchema,
   DraftReportEmailActionSchema,
   CreateCalendarEventActionSchema,
 ]);
@@ -77,6 +148,9 @@ export const HesiaActionSchema = z.discriminatedUnion("type", [
 export type HesiaAction = z.infer<typeof HesiaActionSchema>;
 
 export type CreateTaskAction = z.infer<typeof CreateTaskActionSchema>;
+export type UpdateTaskAction = z.infer<typeof UpdateTaskActionSchema>;
+export type CreateTagAction = z.infer<typeof CreateTagActionSchema>;
+export type CreateCategoryAction = z.infer<typeof CreateCategoryActionSchema>;
 export type DraftReportEmailAction = z.infer<
   typeof DraftReportEmailActionSchema
 >;

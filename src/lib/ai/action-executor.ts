@@ -8,12 +8,23 @@ import {
   downloadIcsFile,
 } from "@/lib/calendar/ics-builder";
 import { buildMailtoUrl } from "@/lib/email/draft-report-email";
-import { createTask } from "@/lib/db/mutations/tasks";
+import { createCategory } from "@/lib/db/mutations/categories";
+import { createTag } from "@/lib/db/mutations/tags";
+import {
+  createTask,
+  ensureCategoryExists,
+  ensureTagExists,
+  updateTask,
+} from "@/lib/db/mutations/tasks";
+import { db } from "@/lib/db/schema";
 import { todayISO } from "@/lib/utils/board-dates";
 import { COLUMN_LABELS } from "@/types/task";
 import type {
   HesiaAction,
   CreateTaskAction,
+  UpdateTaskAction,
+  CreateTagAction,
+  CreateCategoryAction,
   DraftReportEmailAction,
   CreateCalendarEventAction,
 } from "@/types/ai-actions";
@@ -46,6 +57,12 @@ export function buildActionPreview(action: HesiaAction): ActionPreview {
   switch (action.type) {
     case "create_task":
       return buildCreateTaskPreview(action);
+    case "update_task":
+      return buildUpdateTaskPreview(action);
+    case "create_tag":
+      return buildCreateTagPreview(action);
+    case "create_category":
+      return buildCreateCategoryPreview(action);
     case "draft_report_email":
       return buildDraftReportEmailPreview(action);
     case "create_calendar_event":
@@ -78,6 +95,77 @@ function buildCreateTaskPreview(action: CreateTaskAction): ActionPreview {
     detailLines,
     canExecute: true,
     executeLabel: "Add to board",
+  };
+}
+
+function buildUpdateTaskPreview(action: UpdateTaskAction): ActionPreview {
+  const { payload } = action;
+  const detailLines: string[] = [`Task id: ${payload.taskId}`];
+
+  if (payload.title) detailLines.push(`Title → ${payload.title}`);
+  if (payload.status) {
+    detailLines.push(`Column → ${COLUMN_LABELS[payload.status]}`);
+  }
+  if (payload.isPlanned !== undefined) {
+    detailLines.push(
+      `Type → ${payload.isPlanned ? "Planned" : "Flow win"}`,
+    );
+  }
+  if (payload.category !== undefined) {
+    detailLines.push(
+      `Category → ${payload.category.trim() || "(none)"}`,
+    );
+  }
+  if (payload.tags) {
+    detailLines.push(`Tags → ${payload.tags.join(", ") || "(none)"}`);
+  }
+  if (payload.durationMinutes !== undefined) {
+    detailLines.push(`Duration → ${payload.durationMinutes} min`);
+  }
+  if (payload.description !== undefined) {
+    detailLines.push(payload.description || "(clear description)");
+  }
+  if (payload.notes !== undefined) {
+    detailLines.push(payload.notes || "(clear notes)");
+  }
+
+  return {
+    action,
+    title: "Update task",
+    summary: "Apply these changes after you confirm",
+    detailLines,
+    canExecute: true,
+    executeLabel: "Save changes",
+  };
+}
+
+function buildCreateTagPreview(action: CreateTagAction): ActionPreview {
+  const { payload } = action;
+  return {
+    action,
+    title: payload.name,
+    summary: "Create a new tag for your board",
+    detailLines: [
+      ...(payload.colorHex ? [`Color: ${payload.colorHex}`] : []),
+    ],
+    canExecute: true,
+    executeLabel: "Create tag",
+  };
+}
+
+function buildCreateCategoryPreview(
+  action: CreateCategoryAction,
+): ActionPreview {
+  const { payload } = action;
+  return {
+    action,
+    title: payload.name,
+    summary: "Create a new category for tasks",
+    detailLines: [
+      ...(payload.colorHex ? [`Color: ${payload.colorHex}`] : []),
+    ],
+    canExecute: true,
+    executeLabel: "Create category",
   };
 }
 
@@ -136,6 +224,12 @@ export async function executeConfirmedAction(
   switch (action.type) {
     case "create_task":
       return executeCreateTask(action);
+    case "update_task":
+      return executeUpdateTask(action);
+    case "create_tag":
+      return executeCreateTag(action);
+    case "create_category":
+      return executeCreateCategory(action);
     case "draft_report_email":
       return executeDraftReportEmail(action);
     case "create_calendar_event":
@@ -217,6 +311,13 @@ async function executeCreateTask(
   const { payload } = action;
 
   try {
+    for (const tag of payload.tags) {
+      await ensureTagExists(tag);
+    }
+    if (payload.category) {
+      await ensureCategoryExists(payload.category);
+    }
+
     await createTask({
       title: payload.title,
       description: payload.description,
@@ -236,6 +337,85 @@ async function executeCreateTask(
       ok: false,
       message:
         err instanceof Error ? err.message : "Could not create task",
+    };
+  }
+}
+
+async function executeUpdateTask(
+  action: UpdateTaskAction,
+): Promise<ActionExecutionResult> {
+  const { payload } = action;
+  const { taskId, ...updates } = payload;
+
+  try {
+    const existing = await db.tasks.get(taskId);
+    if (!existing) {
+      return { ok: false, message: "Task not found — it may have been deleted" };
+    }
+
+    if (updates.tags) {
+      for (const tag of updates.tags) {
+        await ensureTagExists(tag);
+      }
+    }
+    if (updates.category?.trim()) {
+      await ensureCategoryExists(updates.category);
+    }
+
+    const patch: Parameters<typeof updateTask>[1] = { ...updates };
+    if (updates.category !== undefined) {
+      patch.category = updates.category.trim() || undefined;
+    }
+
+    await updateTask(taskId, patch);
+
+    return {
+      ok: true,
+      message: `"${existing.title}" updated`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error ? err.message : "Could not update task",
+    };
+  }
+}
+
+async function executeCreateTag(
+  action: CreateTagAction,
+): Promise<ActionExecutionResult> {
+  const { payload } = action;
+  try {
+    await createTag(payload.name, payload.colorHex);
+    return {
+      ok: true,
+      message: `Tag "${payload.name}" created`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error ? err.message : "Could not create tag",
+    };
+  }
+}
+
+async function executeCreateCategory(
+  action: CreateCategoryAction,
+): Promise<ActionExecutionResult> {
+  const { payload } = action;
+  try {
+    await createCategory(payload.name, payload.colorHex);
+    return {
+      ok: true,
+      message: `Category "${payload.name}" created`,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error ? err.message : "Could not create category",
     };
   }
 }

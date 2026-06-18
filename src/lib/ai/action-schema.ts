@@ -3,6 +3,9 @@ import type { AiToolDefinition } from "./ai-service";
 import {
   HESIA_ACTIONS_VERSION,
   CreateTaskPayloadSchema,
+  UpdateTaskPayloadSchema,
+  CreateTagPayloadSchema,
+  CreateCategoryPayloadSchema,
   DraftReportEmailPayloadSchema,
   CreateCalendarEventPayloadSchema,
   HesiaActionSchema,
@@ -41,12 +44,103 @@ export const HESIA_ACTION_TOOLS: AiToolDefinition[] = [
           tags: {
             type: "array",
             items: { type: "string" },
-            description: "Optional tags",
+            description:
+              "Tag names to assign. New names are created automatically when the user confirms.",
           },
-          category: { type: "string", description: "Optional category" },
+          category: {
+            type: "string",
+            description:
+              "Category name. New names are created automatically when the user confirms.",
+          },
           durationMinutes: {
             type: "integer",
             description: "Optional duration in minutes",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_task",
+      description:
+        "Propose changes to an existing task. Use taskId from context. Requires user confirmation.",
+      parameters: {
+        type: "object",
+        required: ["taskId"],
+        properties: {
+          taskId: {
+            type: "string",
+            description: "UUID of the task to update (from context)",
+          },
+          title: { type: "string", description: "New title" },
+          description: { type: "string", description: "New description" },
+          notes: { type: "string", description: "New notes" },
+          status: {
+            type: "string",
+            enum: TASK_STATUS_ENUM,
+            description: "New column",
+          },
+          isPlanned: {
+            type: "boolean",
+            description: "Planned vs flow win",
+          },
+          tags: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Full replacement tag list. New tag names are created on confirm.",
+          },
+          category: {
+            type: "string",
+            description:
+              "New category. New names are created on confirm. Empty string clears.",
+          },
+          durationMinutes: {
+            type: "integer",
+            description: "Duration in minutes",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_tag",
+      description:
+        "Add a new tag to the user's tag library for use on tasks. Requires user confirmation.",
+      parameters: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", description: "Tag name" },
+          colorHex: {
+            type: "string",
+            description: "Optional hex color, e.g. #6366f1",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_category",
+      description:
+        "Add a new category to the user's library. Requires user confirmation.",
+      parameters: {
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", description: "Category name" },
+          colorHex: {
+            type: "string",
+            description: "Optional hex color, e.g. #10b981",
           },
         },
         additionalProperties: false,
@@ -121,6 +215,9 @@ export const HESIA_ACTION_TOOLS: AiToolDefinition[] = [
 
 const ToolNameSchema = z.enum([
   "create_task",
+  "update_task",
+  "create_tag",
+  "create_category",
   "draft_report_email",
   "create_calendar_event",
 ]);
@@ -151,6 +248,21 @@ export function wrapPayloadAsAction(
   switch (type) {
     case "create_task": {
       const parsed = CreateTaskPayloadSchema.safeParse(payload);
+      if (!parsed.success) return null;
+      return { type, version, payload: parsed.data };
+    }
+    case "update_task": {
+      const parsed = UpdateTaskPayloadSchema.safeParse(payload);
+      if (!parsed.success) return null;
+      return { type, version, payload: parsed.data };
+    }
+    case "create_tag": {
+      const parsed = CreateTagPayloadSchema.safeParse(payload);
+      if (!parsed.success) return null;
+      return { type, version, payload: parsed.data };
+    }
+    case "create_category": {
+      const parsed = CreateCategoryPayloadSchema.safeParse(payload);
       if (!parsed.success) return null;
       return { type, version, payload: parsed.data };
     }

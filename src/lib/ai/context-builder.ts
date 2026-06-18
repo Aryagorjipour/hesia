@@ -58,6 +58,8 @@ export async function buildContext(
   const settings = await db.settings.get("default");
   const memory = await db.userMemory.toArray();
   const allTasks = await db.tasks.toArray();
+  const allTags = await db.tags.toArray();
+  const allCategories = await db.categories.toArray();
   const reports = await db.weeklyReports
     .orderBy("generatedAt")
     .reverse()
@@ -113,12 +115,26 @@ export async function buildContext(
     ? memory.map((m) => `- [${m.type}] ${m.content}`).join("\n")
     : "(No saved memory yet)";
 
+  const tagsSection = allTags.length
+    ? allTags
+        .sort((a, b) => b.usageCount - a.usageCount)
+        .map((t) => `- ${t.name} (${t.usageCount} uses)`)
+        .join("\n")
+    : "(No tags yet — you may propose new names via create_tag or on tasks)";
+
+  const categoriesSection = allCategories.length
+    ? allCategories
+        .sort((a, b) => b.usageCount - a.usageCount)
+        .map((c) => `- ${c.name} (${c.usageCount} uses)`)
+        .join("\n")
+    : "(No categories yet — you may propose new names via create_category or on tasks)";
+
   const tasksSection =
     uniqueTasks.length <= 80
       ? uniqueTasks
           .map(
             (t) =>
-              `- ${t.title} | ${t.status} | ${t.isPlanned ? "planned" : "flow"} | tags: ${t.tags.join(", ") || "none"} | ${t.category ?? "no category"}`,
+              `- [id:${t.id}] ${t.title} | ${t.status} | ${t.isPlanned ? "planned" : "flow"} | tags: ${t.tags.join(", ") || "none"} | ${t.category ?? "no category"}${t.durationMinutes ? ` | ${t.durationMinutes}m` : ""}`,
           )
           .join("\n")
       : summarizeTasksByCategory(uniqueTasks);
@@ -143,7 +159,14 @@ ${memorySection}
 ## Current Period Stats & Breakdowns
 ${formatStatsSectionForPrompt(stats)}
 
+## Tags (user's library)
+${tagsSection}
+
+## Categories (user's library)
+${categoriesSection}
+
 ## Relevant Activities (last ${maxWeeks} weeks, ${uniqueTasks.length} tasks)
+Use [id:…] when calling update_task.
 ${tasksSection || "(No tasks in range)"}
 
 ## Recent Reflection History

@@ -5,8 +5,11 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  FolderOpen,
   LayoutGrid,
   Mail,
+  Pencil,
+  Tag,
   X,
 } from "lucide-react";
 import {
@@ -36,6 +39,9 @@ interface ActionPreviewCardProps {
 
 const ACTION_ICONS = {
   create_task: LayoutGrid,
+  update_task: Pencil,
+  create_tag: Tag,
+  create_category: FolderOpen,
   draft_report_email: Mail,
   create_calendar_event: Calendar,
 } as const;
@@ -124,7 +130,15 @@ export function ActionPreviewCard({
   }
 
   const doneLabel =
-    action.type === "create_task" ? "Added to board" : "Done";
+    action.type === "create_task"
+      ? "Added to board"
+      : action.type === "update_task"
+        ? "Saved"
+        : action.type === "create_tag"
+          ? "Tag created"
+          : action.type === "create_category"
+            ? "Category created"
+            : "Done";
 
   const taskSummary =
     isCreateTask && taskFields

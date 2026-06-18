@@ -138,8 +138,8 @@ export function SendReportDialog({ report, disabled }: SendReportDialogProps) {
         <DialogHeader>
           <DialogTitle>Share weekly reflection</DialogTitle>
           <DialogDescription>
-            Send via local relay SMTP or your mail client. Add a calendar
-            reminder for your next reflection.
+            Send through your email (via Hesia Companion) or your mail app.
+            Add a calendar reminder for your next reflection.
           </DialogDescription>
         </DialogHeader>
 
@@ -156,8 +156,8 @@ export function SendReportDialog({ report, disabled }: SendReportDialogProps) {
             />
             <p className="text-xs text-muted-foreground">
               {relay?.enabled
-                ? "Relay enabled — sends through localhost SMTP when configured."
-                : "Relay off — opens mailto: in your default mail client."}
+                ? "Uses your email account set up in Settings → Integrations."
+                : "Opens your mail app instead — enable Companion in Settings to send in-app."}
             </p>
           </div>
 
@@ -171,7 +171,7 @@ export function SendReportDialog({ report, disabled }: SendReportDialogProps) {
             ) : (
               <Mail className="h-4 w-4" />
             )}
-            {relay?.enabled ? "Send via relay" : "Open in mail client"}
+            {relay?.enabled ? "Send email" : "Open in mail client"}
           </Button>
 
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">

@@ -36,8 +36,8 @@ export async function buildMcpContext(
   } catch {
     return [
       "## MCP tools",
-      "Local relay is enabled but unreachable.",
-      "Start it with `npm run relay` and verify the URL in Settings → Integrations.",
+      "Hesia Companion is enabled but not running on this computer.",
+      "Start the Companion app and check Settings → Integrations.",
     ].join("\n");
   }
 

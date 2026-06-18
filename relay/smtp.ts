@@ -17,6 +17,11 @@ export function isSmtpConfigured(config: SmtpConfig | null | undefined): boolean
   return Boolean(config?.host && config.user && config.from);
 }
 
+export function resetSmtpTransporter(): void {
+  transporter = null;
+  activeConfig = null;
+}
+
 export function getSmtpTransporter(config: SmtpConfig): Transporter {
   if (
     transporter &&

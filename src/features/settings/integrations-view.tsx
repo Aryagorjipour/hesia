@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db/schema";
 import { checkRelayHealth } from "@/lib/mcp/client";
+import { RelayCompanionGuide } from "@/features/settings/relay-companion-guide";
+import { RelaySmtpPanel } from "@/features/settings/relay-smtp-panel";
 import { toast } from "@/lib/toast";
 import type { McpServerConfig } from "@/types/mcp";
 import { DEFAULT_LOCALE_SETTINGS } from "@/lib/i18n/locale-defaults";
@@ -39,6 +41,7 @@ export function IntegrationsView() {
     ok: boolean;
     smtpConfigured?: boolean;
   } | null>(null);
+  const [smtpRefreshKey, setSmtpRefreshKey] = useState(0);
 
   const relay = settings?.relay ?? { enabled: false, url: "http://127.0.0.1:8787" };
   const locale: LocaleSettings = settings?.locale ?? DEFAULT_LOCALE_SETTINGS;
@@ -69,15 +72,16 @@ export function IntegrationsView() {
       });
       if (health.ok) {
         toast.success({
-          title: "Relay reachable",
+          title: "Companion connected",
           description: health.smtpConfigured
-            ? "SMTP is configured in relay/config.json"
-            : "Relay running — add SMTP in relay/config.json",
+            ? "Email is ready to send."
+            : "Companion is running — add your email settings below.",
         });
       } else {
         toast.warning({
-          title: "Relay unreachable",
-          description: "Start it with npm run relay from the project root.",
+          title: "Companion not running",
+          description:
+            "Start Hesia Companion on this computer, then test again.",
         });
       }
     } finally {
@@ -179,10 +183,10 @@ export function IntegrationsView() {
             <Mail className="h-4 w-4 text-accent" />
             <div>
               <h2 className="text-sm font-medium text-foreground">
-                Local relay
+                Email & companion
               </h2>
               <p className="text-xs text-muted-foreground">
-                Bun service on localhost — SMTP + MCP bridge
+                Send reports from Hesía via your own email account
               </p>
             </div>
           </div>
@@ -195,19 +199,15 @@ export function IntegrationsView() {
           />
         </div>
 
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="relay-url">Relay URL</Label>
-            <Input
-              id="relay-url"
-              value={relay.url}
-              onChange={(e) =>
-                void persist({ relay: { ...relay, url: e.target.value } })
-              }
-              placeholder="http://127.0.0.1:8787"
-              disabled={saving}
-            />
-          </div>
+        <div className="space-y-4">
+          {!relay.enabled ? (
+            <p className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-4 text-sm text-muted-foreground">
+              Turn on the switch above to send weekly reports and other email
+              directly from Hesía.
+            </p>
+          ) : (
+            <>
+          <RelayCompanionGuide />
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -231,19 +231,49 @@ export function IntegrationsView() {
               <span className="text-xs text-muted-foreground">
                 {relayStatus.ok
                   ? relayStatus.smtpConfigured
-                    ? "Connected · SMTP ready"
-                    : "Connected · SMTP not configured"
-                  : "Not reachable"}
+                    ? "Connected · email ready"
+                    : "Connected · set up email below"
+                  : "Companion not detected"}
               </span>
             )}
           </div>
 
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Copy <code className="rounded bg-muted px-1">relay/config.example.json</code>{" "}
-            to <code className="rounded bg-muted px-1">relay/config.json</code> and
-            run <code className="rounded bg-muted px-1">npm run relay</code>. SMTP
-            credentials never enter the browser.
-          </p>
+          <RelaySmtpPanel
+            relayUrl={relay.url}
+            relayReachable={relayStatus?.ok ?? false}
+            refreshKey={smtpRefreshKey}
+            onSaved={() => {
+              setSmtpRefreshKey((k) => k + 1);
+              void probeRelay();
+            }}
+          />
+
+          <details className="rounded-xl border border-border/50 bg-muted/5 px-3 py-2 text-xs text-muted-foreground">
+            <summary className="cursor-pointer py-1 text-foreground">
+              Troubleshooting
+            </summary>
+            <div className="space-y-2 pb-2 pt-1 leading-relaxed">
+              <p>
+                Companion address (usually leave as default):{" "}
+                <code className="rounded bg-muted px-1">{relay.url}</code>
+              </p>
+              <Label htmlFor="relay-url" className="sr-only">
+                Companion URL
+              </Label>
+              <Input
+                id="relay-url"
+                value={relay.url}
+                onChange={(e) =>
+                  void persist({ relay: { ...relay, url: e.target.value } })
+                }
+                placeholder="http://127.0.0.1:8787"
+                disabled={saving}
+                className="h-8 text-xs"
+              />
+            </div>
+          </details>
+            </>
+          )}
         </div>
       </section>
 

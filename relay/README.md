@@ -12,17 +12,17 @@ Local-only companion service for Hesia. Runs on **your machine** with Bun — ne
 
 - Binds to `127.0.0.1` only (refuses other hosts)
 - CORS limited to localhost origins
-- SMTP credentials live in `config.json` on disk — never in the browser
+- SMTP credentials are saved in `config.json` on disk by the companion — the PWA sends them only to `localhost`, never to hosted servers
 
 ## Setup
 
 ```bash
 cd relay
 bun install
-cp config.example.json config.json
-# Edit config.json with your SMTP provider
 bun run start
 ```
+
+Then open **Hesía → Settings → Integrations**, start the companion, and enter your email provider + app password in the app. No manual JSON editing required.
 
 From the repo root:
 
@@ -63,6 +63,9 @@ The browser stores MCP server *metadata* in Dexie; the relay spawns stdio proces
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Relay status |
+| GET | `/smtp/config` | Masked SMTP settings |
+| PUT | `/smtp/config` | Save SMTP settings from Hesía UI |
+| POST | `/smtp/test` | Verify SMTP connection |
 | POST | `/email/send` | `{ to, subject, text, html? }` |
 | GET | `/mcp/tools` | List bridged tools |
 | POST | `/mcp/call` | `{ serverId, name, arguments }` |

@@ -1,37 +1,24 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import {
   callBridgeTool,
   listAllTools,
   shutdownBridge,
-  type RelayMcpServerConfig,
 } from "./mcp-bridge";
-import { isSmtpConfigured, sendMail, type SmtpConfig } from "./smtp";
+import { isSmtpConfigured, sendMail, resetSmtpTransporter } from "./smtp";
+import {
+  getRelayConfig,
+  getSmtpConfig,
+  isRelaySmtpConfigured,
+  loadRelayConfig,
+  toPublicSmtpConfig,
+  updateSmtpConfig,
+} from "./config-store";
+import { verifySmtpConnection } from "./smtp-test";
 
-interface RelayConfig {
-  host: string;
-  port: number;
-  smtp?: SmtpConfig;
-  mcpServers?: RelayMcpServerConfig[];
-}
+await loadRelayConfig();
 
-const CONFIG_PATH = resolve(import.meta.dir, "config.json");
-
-async function loadConfig(): Promise<RelayConfig> {
-  try {
-    const raw = await readFile(CONFIG_PATH, "utf8");
-    return JSON.parse(raw) as RelayConfig;
-  } catch {
-    console.warn(
-      "[hesia-relay] config.json not found — copy config.example.json and edit SMTP settings.",
-    );
-    return { host: "127.0.0.1", port: 8787, mcpServers: [] };
-  }
-}
-
-const config = await loadConfig();
+const config = getRelayConfig();
 const host = config.host ?? "127.0.0.1";
 const port = config.port ?? 8787;
 const mcpServers = config.mcpServers ?? [];
@@ -67,16 +54,101 @@ app.get("/health", (c) =>
   c.json({
     ok: true,
     version: "0.1.0",
-    smtpConfigured: isSmtpConfigured(config.smtp),
+    smtpConfigured: isRelaySmtpConfigured(),
     mcpBridgeReady: true,
     mcpServerCount: mcpServers.filter((s) => s.enabled !== false).length,
   }),
 );
 
-app.post("/email/send", async (c) => {
-  if (!isSmtpConfigured(config.smtp) || !config.smtp) {
+app.get("/smtp/config", (c) => {
+  const publicConfig = toPublicSmtpConfig(getSmtpConfig());
+  return c.json({
+    ok: true,
+    configured: isRelaySmtpConfigured(),
+    config: publicConfig,
+  });
+});
+
+app.put("/smtp/config", async (c) => {
+  const body = await c.req.json<{
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    pass?: string;
+    from?: string;
+  }>();
+
+  if (!body.host?.trim() || !body.user?.trim() || !body.from?.trim()) {
     return c.json(
-      { ok: false, error: "SMTP not configured — edit relay/config.json" },
+      { ok: false, error: "host, user, and from are required" },
+      400,
+    );
+  }
+
+  const port = Number(body.port);
+  if (!Number.isFinite(port) || port < 1 || port > 65535) {
+    return c.json({ ok: false, error: "port must be between 1 and 65535" }, 400);
+  }
+
+  const existing = getSmtpConfig();
+  if (!body.pass?.trim() && !existing?.pass) {
+    return c.json(
+      { ok: false, error: "app password is required for first-time setup" },
+      400,
+    );
+  }
+
+  try {
+    const saved = await updateSmtpConfig({
+      host: body.host,
+      port,
+      secure: body.secure,
+      user: body.user,
+      pass: body.pass,
+      from: body.from,
+    });
+    resetSmtpTransporter();
+    return c.json({
+      ok: true,
+      configured: isSmtpConfigured(saved),
+      config: toPublicSmtpConfig(saved),
+    });
+  } catch (err) {
+    return c.json(
+      {
+        ok: false,
+        error: err instanceof Error ? err.message : "Could not save SMTP config",
+      },
+      500,
+    );
+  }
+});
+
+app.post("/smtp/test", async (c) => {
+  const smtp = getSmtpConfig();
+  if (!isSmtpConfigured(smtp) || !smtp) {
+    return c.json(
+      { ok: false, error: "Save your email settings before testing" },
+      503,
+    );
+  }
+
+  const result = await verifySmtpConnection(smtp);
+  if (!result.ok) {
+    return c.json({ ok: false, error: result.error }, 400);
+  }
+  return c.json({ ok: true, message: "SMTP connection successful" });
+});
+
+app.post("/email/send", async (c) => {
+  const smtp = getSmtpConfig();
+  if (!isSmtpConfigured(smtp) || !smtp) {
+    return c.json(
+      {
+        ok: false,
+        error: "Email not set up — open Settings → Integrations and save SMTP",
+      },
       503,
     );
   }
@@ -93,7 +165,7 @@ app.post("/email/send", async (c) => {
   }
 
   try {
-    const result = await sendMail(config.smtp, {
+    const result = await sendMail(smtp, {
       to: body.to,
       subject: body.subject,
       text: body.text,
@@ -129,7 +201,7 @@ app.post("/mcp/call", async (c) => {
 
   const result = await callBridgeTool(
     mcpServers,
-    config.smtp,
+    getSmtpConfig(),
     body.serverId,
     body.name,
     body.arguments ?? {},
@@ -141,7 +213,7 @@ console.log(
   `[hesia-relay] Listening on http://${host}:${port} (localhost only)`,
 );
 console.log(
-  `[hesia-relay] SMTP: ${isSmtpConfigured(config.smtp) ? "configured" : "not configured"}`,
+  `[hesia-relay] SMTP: ${isRelaySmtpConfigured() ? "configured" : "waiting for setup in Hesía Settings"}`,
 );
 
 const server = Bun.serve({

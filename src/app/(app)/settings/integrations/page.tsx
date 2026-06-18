@@ -9,7 +9,7 @@ export default function IntegrationsSettingsPage() {
     <div className="mx-auto flex h-full min-h-0 w-full max-w-2xl flex-col">
       <SettingsPageHeader
         title="Integrations"
-        description="Local relay, email, MCP servers, and locale display."
+        description="Email companion, MCP servers, and locale display."
       />
 
       <SettingsScrollArea>

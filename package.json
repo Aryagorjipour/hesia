@@ -19,7 +19,7 @@
     "build:pages": "node scripts/build-pages.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/offline-routes.test.mjs",
+    "test": "node --test scripts/offline-routes.test.mjs scripts/locale-migration.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "pwa:dev": "set SERWIST_DEV=1&& set NEXT_PUBLIC_SERWIST_DEV=1&& npm run build && npm run start",
     "relay": "cd relay && bun run start",

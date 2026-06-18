@@ -40,8 +40,8 @@ Calendar **storage** is not synced — Hesia generates one-off events/reminders 
 
 ```ts
 locale: {
-  calendar: "jalali" | "gregorian",  // default jalali
-  direction: "rtl" | "ltr",        // default rtl
+  calendar: "jalali" | "gregorian",  // default gregorian
+  direction: "rtl" | "ltr",        // default ltr
 }
 ```
 

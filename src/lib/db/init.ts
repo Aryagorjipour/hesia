@@ -29,12 +29,17 @@ const DEFAULT_SETTINGS: AppSettings = {
 export async function ensureDefaultSettings(): Promise<AppSettings> {
   const existing = await db.settings.get("default");
   if (existing) {
+    let next = existing;
     if (!existing.aiProfiles?.length && existing.aiConfig) {
-      const migrated = migrateSettingsAi(existing);
-      await db.settings.put(migrated);
-      return migrated;
+      next = migrateSettingsAi(existing);
     }
-    return existing;
+    if (!next.locale) {
+      next = { ...next, locale: DEFAULT_LOCALE_SETTINGS };
+    }
+    if (next !== existing) {
+      await db.settings.put(next);
+    }
+    return next;
   }
 
   await db.settings.put(DEFAULT_SETTINGS);

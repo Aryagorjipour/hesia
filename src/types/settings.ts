@@ -77,8 +77,8 @@ export const WeekStartsOnSchema = z.number().int().min(0).max(6).default(1);
 export type WeekStartsOnSetting = z.infer<typeof WeekStartsOnSchema>;
 
 export const LocaleSettingsSchema = z.object({
-  calendar: z.enum(["jalali", "gregorian"]).default("jalali"),
-  direction: z.enum(["rtl", "ltr"]).default("rtl"),
+  calendar: z.enum(["jalali", "gregorian"]).default("gregorian"),
+  direction: z.enum(["rtl", "ltr"]).default("ltr"),
 });
 
 export type LocaleSettings = z.infer<typeof LocaleSettingsSchema>;
@@ -118,8 +118,8 @@ export const AppSettingsSchema = z.object({
     }),
   dataDirectoryHint: z.string().optional(),
   locale: LocaleSettingsSchema.default({
-    calendar: "jalali",
-    direction: "rtl",
+    calendar: "gregorian",
+    direction: "ltr",
   }),
   relay: RelaySettingsSchema.default({
     enabled: false,

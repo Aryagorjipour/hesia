@@ -1,21 +1,16 @@
 import type { LocaleSettings } from "@/types/settings";
 
-/** Default locale for new installs — jalali calendar + RTL (Persian-first). */
+/** Default locale for new installs — Gregorian calendar + LTR (English UI). */
 export const DEFAULT_LOCALE_SETTINGS: LocaleSettings = {
-  calendar: "jalali",
-  direction: "rtl",
-};
-
-/** Defaults when switching to Gregorian / LTR display. */
-export const GREGORIAN_LTR_LOCALE: LocaleSettings = {
   calendar: "gregorian",
   direction: "ltr",
 };
 
-export function localeForCalendar(
-  calendar: LocaleSettings["calendar"],
-): LocaleSettings {
-  return calendar === "jalali"
-    ? { calendar: "jalali", direction: "rtl" }
-    : { calendar: "gregorian", direction: "ltr" };
-}
+/** Opt-in preset for Persian / Jalali (Settings → Integrations). */
+export const JALALI_RTL_LOCALE: LocaleSettings = {
+  calendar: "jalali",
+  direction: "rtl",
+};
+
+/** @deprecated Use DEFAULT_LOCALE_SETTINGS */
+export const GREGORIAN_LTR_LOCALE: LocaleSettings = DEFAULT_LOCALE_SETTINGS;

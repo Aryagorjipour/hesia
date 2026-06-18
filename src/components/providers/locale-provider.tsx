@@ -14,7 +14,7 @@ interface LocaleContextValue {
 
 const LocaleContext = createContext<LocaleContextValue>({
   locale: DEFAULT_LOCALE_SETTINGS,
-  isRtl: true,
+  isRtl: false,
 });
 
 export function useLocale(): LocaleContextValue {

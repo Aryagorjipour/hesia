@@ -17,6 +17,7 @@ import { db } from "@/lib/db/schema";
 import { checkRelayHealth } from "@/lib/mcp/client";
 import { toast } from "@/lib/toast";
 import type { McpServerConfig } from "@/types/mcp";
+import { DEFAULT_LOCALE_SETTINGS } from "@/lib/i18n/locale-defaults";
 import type { LocaleSettings } from "@/types/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +41,7 @@ export function IntegrationsView() {
   } | null>(null);
 
   const relay = settings?.relay ?? { enabled: false, url: "http://127.0.0.1:8787" };
-  const locale: LocaleSettings = settings?.locale ?? {
-    calendar: "jalali",
-    direction: "rtl",
-  };
+  const locale: LocaleSettings = settings?.locale ?? DEFAULT_LOCALE_SETTINGS;
   const mcpServers = settings?.mcpServers ?? [];
 
   async function persist(patch: Record<string, unknown>) {

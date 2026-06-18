@@ -189,6 +189,7 @@ export async function testFeatureConnection(
   return testConnection(profile, apiKey);
 }
 
+/** Tool calls on by default; disabled only after an explicit failed capability probe. */
 export function profileSupportsToolCalls(profile: AiProviderProfile): boolean {
-  return profile.capabilities?.supportsToolCalls === true;
+  return profile.capabilities?.supportsToolCalls !== false;
 }

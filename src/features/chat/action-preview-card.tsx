@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   FolderOpen,
+  Layers,
   LayoutGrid,
   Mail,
   Pencil,
@@ -40,6 +41,7 @@ interface ActionPreviewCardProps {
 const ACTION_ICONS = {
   create_task: LayoutGrid,
   update_task: Pencil,
+  bulk_update_tasks: Layers,
   create_tag: Tag,
   create_category: FolderOpen,
   draft_report_email: Mail,
@@ -134,11 +136,13 @@ export function ActionPreviewCard({
       ? "Added to board"
       : action.type === "update_task"
         ? "Saved"
-        : action.type === "create_tag"
-          ? "Tag created"
-          : action.type === "create_category"
-            ? "Category created"
-            : "Done";
+        : action.type === "bulk_update_tasks"
+          ? "Applied"
+          : action.type === "create_tag"
+            ? "Tag created"
+            : action.type === "create_category"
+              ? "Category created"
+              : "Done";
 
   const taskSummary =
     isCreateTask && taskFields

@@ -4,6 +4,7 @@ import {
   HESIA_ACTIONS_VERSION,
   CreateTaskPayloadSchema,
   UpdateTaskPayloadSchema,
+  BulkUpdateTasksPayloadSchema,
   CreateTagPayloadSchema,
   CreateCategoryPayloadSchema,
   DraftReportEmailPayloadSchema,
@@ -101,6 +102,48 @@ export const HESIA_ACTION_TOOLS: AiToolDefinition[] = [
           durationMinutes: {
             type: "integer",
             description: "Duration in minutes",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bulk_update_tasks",
+      description:
+        "Assign tags and/or categories to multiple existing tasks at once. Use when the user wants labels applied after you suggested them. Requires user confirmation.",
+      parameters: {
+        type: "object",
+        required: ["updates"],
+        properties: {
+          updates: {
+            type: "array",
+            description: "One entry per task to update",
+            items: {
+              type: "object",
+              properties: {
+                taskId: {
+                  type: "string",
+                  description: "Task UUID from context (preferred)",
+                },
+                titleMatch: {
+                  type: "string",
+                  description:
+                    "Substring of task title if id unknown, e.g. barbershop",
+                },
+                tags: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "Full tag list for this task",
+                },
+                category: {
+                  type: "string",
+                  description: "Category name (created if new)",
+                },
+              },
+            },
           },
         },
         additionalProperties: false,
@@ -216,6 +259,7 @@ export const HESIA_ACTION_TOOLS: AiToolDefinition[] = [
 const ToolNameSchema = z.enum([
   "create_task",
   "update_task",
+  "bulk_update_tasks",
   "create_tag",
   "create_category",
   "draft_report_email",
@@ -253,6 +297,11 @@ export function wrapPayloadAsAction(
     }
     case "update_task": {
       const parsed = UpdateTaskPayloadSchema.safeParse(payload);
+      if (!parsed.success) return null;
+      return { type, version, payload: parsed.data };
+    }
+    case "bulk_update_tasks": {
+      const parsed = BulkUpdateTasksPayloadSchema.safeParse(payload);
       if (!parsed.success) return null;
       return { type, version, payload: parsed.data };
     }

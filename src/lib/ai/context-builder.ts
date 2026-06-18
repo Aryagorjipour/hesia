@@ -166,7 +166,8 @@ ${tagsSection}
 ${categoriesSection}
 
 ## Relevant Activities (last ${maxWeeks} weeks, ${uniqueTasks.length} tasks)
-Use [id:…] when calling update_task.
+Use \`taskId\` from [id:…] for update_task, or \`titleMatch\` for bulk_update_tasks.
+When the user asks to apply tags/categories you suggested, emit **bulk_update_tasks** — do not tell them to edit manually.
 ${tasksSection || "(No tasks in range)"}
 
 ## Recent Reflection History

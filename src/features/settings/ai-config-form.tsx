@@ -645,17 +645,15 @@ export function AiConfigForm() {
           />
         </div>
 
-        {selectedProfile.capabilities?.supportsToolCalls !== undefined && (
-          <p className="text-xs text-muted-foreground">
-            Tool-calls:{" "}
-            {selectedProfile.capabilities.supportsToolCalls
-              ? "Supported"
-              : "Not supported"}
-            {selectedProfile.capabilities.probedAt
-              ? ` (last probed ${new Date(selectedProfile.capabilities.probedAt).toLocaleString()})`
-              : null}
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground">
+          Companion actions (add tasks, tags, categories):{" "}
+          {selectedProfile.capabilities?.supportsToolCalls === false
+            ? "Disabled — probe again or use a model with tool-calls. Chat may only give manual instructions."
+            : "Enabled — confirm cards for tasks, tags, and categories in chat."}
+          {selectedProfile.capabilities?.probedAt
+            ? ` Last probe: ${new Date(selectedProfile.capabilities.probedAt).toLocaleString()}.`
+            : null}
+        </p>
       </div>
 
       <Card className="rounded-2xl">

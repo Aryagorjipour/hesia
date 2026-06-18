@@ -6,6 +6,7 @@ export const HESIA_ACTIONS_VERSION = "hesia-actions/v1" as const;
 export const HesiaActionTypeSchema = z.enum([
   "create_task",
   "update_task",
+  "bulk_update_tasks",
   "create_tag",
   "create_category",
   "draft_report_email",
@@ -53,6 +54,29 @@ export const UpdateTaskPayloadSchema = z
   );
 
 export type UpdateTaskPayload = z.infer<typeof UpdateTaskPayloadSchema>;
+
+export const BulkTaskUpdateItemSchema = z
+  .object({
+    taskId: z.string().uuid().optional(),
+    titleMatch: z.string().min(1).optional(),
+    tags: z.array(z.string()).optional(),
+    category: z.string().optional(),
+  })
+  .refine((item) => Boolean(item.taskId?.trim() || item.titleMatch?.trim()), {
+    message: "taskId or titleMatch is required",
+  })
+  .refine(
+    (item) => item.tags !== undefined || item.category !== undefined,
+    { message: "tags or category is required" },
+  );
+
+export const BulkUpdateTasksPayloadSchema = z.object({
+  updates: z.array(BulkTaskUpdateItemSchema).min(1).max(40),
+});
+
+export type BulkUpdateTasksPayload = z.infer<
+  typeof BulkUpdateTasksPayloadSchema
+>;
 
 export const CreateTagPayloadSchema = z.object({
   name: z.string().min(1).max(60),
@@ -112,6 +136,12 @@ export const UpdateTaskActionSchema = z.object({
   payload: UpdateTaskPayloadSchema,
 });
 
+export const BulkUpdateTasksActionSchema = z.object({
+  type: z.literal("bulk_update_tasks"),
+  version: z.literal(HESIA_ACTIONS_VERSION),
+  payload: BulkUpdateTasksPayloadSchema,
+});
+
 export const CreateTagActionSchema = z.object({
   type: z.literal("create_tag"),
   version: z.literal(HESIA_ACTIONS_VERSION),
@@ -139,6 +169,7 @@ export const CreateCalendarEventActionSchema = z.object({
 export const HesiaActionSchema = z.discriminatedUnion("type", [
   CreateTaskActionSchema,
   UpdateTaskActionSchema,
+  BulkUpdateTasksActionSchema,
   CreateTagActionSchema,
   CreateCategoryActionSchema,
   DraftReportEmailActionSchema,
@@ -149,6 +180,9 @@ export type HesiaAction = z.infer<typeof HesiaActionSchema>;
 
 export type CreateTaskAction = z.infer<typeof CreateTaskActionSchema>;
 export type UpdateTaskAction = z.infer<typeof UpdateTaskActionSchema>;
+export type BulkUpdateTasksAction = z.infer<
+  typeof BulkUpdateTasksActionSchema
+>;
 export type CreateTagAction = z.infer<typeof CreateTagActionSchema>;
 export type CreateCategoryAction = z.infer<typeof CreateCategoryActionSchema>;
 export type DraftReportEmailAction = z.infer<

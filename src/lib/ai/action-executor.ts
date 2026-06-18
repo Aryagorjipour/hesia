@@ -16,6 +16,7 @@ import {
   ensureTagExists,
   updateTask,
 } from "@/lib/db/mutations/tasks";
+import { findTaskForBulkUpdate } from "@/lib/ai/task-title-match";
 import { db } from "@/lib/db/schema";
 import { todayISO } from "@/lib/utils/board-dates";
 import { COLUMN_LABELS } from "@/types/task";
@@ -23,6 +24,7 @@ import type {
   HesiaAction,
   CreateTaskAction,
   UpdateTaskAction,
+  BulkUpdateTasksAction,
   CreateTagAction,
   CreateCategoryAction,
   DraftReportEmailAction,
@@ -59,6 +61,8 @@ export function buildActionPreview(action: HesiaAction): ActionPreview {
       return buildCreateTaskPreview(action);
     case "update_task":
       return buildUpdateTaskPreview(action);
+    case "bulk_update_tasks":
+      return buildBulkUpdateTasksPreview(action);
     case "create_tag":
       return buildCreateTagPreview(action);
     case "create_category":
@@ -136,6 +140,32 @@ function buildUpdateTaskPreview(action: UpdateTaskAction): ActionPreview {
     detailLines,
     canExecute: true,
     executeLabel: "Save changes",
+  };
+}
+
+function buildBulkUpdateTasksPreview(
+  action: BulkUpdateTasksAction,
+): ActionPreview {
+  const { updates } = action.payload;
+  const detailLines = updates.slice(0, 12).map((item) => {
+    const parts: string[] = [];
+    if (item.titleMatch) parts.push(`Match: "${item.titleMatch}"`);
+    if (item.taskId) parts.push(`Id: ${item.taskId.slice(0, 8)}…`);
+    if (item.category) parts.push(`Category: ${item.category}`);
+    if (item.tags?.length) parts.push(`Tags: ${item.tags.join(", ")}`);
+    return parts.join(" · ");
+  });
+  if (updates.length > 12) {
+    detailLines.push(`… and ${updates.length - 12} more tasks`);
+  }
+
+  return {
+    action,
+    title: `Update ${updates.length} task${updates.length === 1 ? "" : "s"}`,
+    summary: "Apply tags and categories after you confirm",
+    detailLines,
+    canExecute: true,
+    executeLabel: "Apply to tasks",
   };
 }
 
@@ -226,6 +256,8 @@ export async function executeConfirmedAction(
       return executeCreateTask(action);
     case "update_task":
       return executeUpdateTask(action);
+    case "bulk_update_tasks":
+      return executeBulkUpdateTasks(action);
     case "create_tag":
       return executeCreateTag(action);
     case "create_category":
@@ -380,6 +412,65 @@ async function executeUpdateTask(
         err instanceof Error ? err.message : "Could not update task",
     };
   }
+}
+
+async function executeBulkUpdateTasks(
+  action: BulkUpdateTasksAction,
+): Promise<ActionExecutionResult> {
+  const { updates } = action.payload;
+  const tasks = await db.tasks.toArray();
+  let applied = 0;
+  const missed: string[] = [];
+
+  for (const item of updates) {
+    const task = findTaskForBulkUpdate(
+      tasks,
+      item.taskId,
+      item.titleMatch,
+    );
+    if (!task) {
+      missed.push(item.titleMatch ?? item.taskId ?? "unknown");
+      continue;
+    }
+
+    if (item.tags) {
+      for (const tag of item.tags) {
+        await ensureTagExists(tag);
+      }
+    }
+    if (item.category?.trim()) {
+      await ensureCategoryExists(item.category);
+    }
+
+    const patch: Parameters<typeof updateTask>[1] = {};
+    if (item.tags !== undefined) patch.tags = item.tags;
+    if (item.category !== undefined) {
+      patch.category = item.category.trim() || undefined;
+    }
+
+    await updateTask(task.id, patch);
+    applied += 1;
+  }
+
+  if (applied === 0) {
+    return {
+      ok: false,
+      message:
+        missed.length > 0
+          ? `No matching tasks found (${missed.slice(0, 3).join(", ")})`
+          : "No tasks updated",
+    };
+  }
+
+  const suffix =
+    missed.length > 0
+      ? ` — ${missed.length} could not be matched`
+      : "";
+
+  return {
+    ok: true,
+    message: `Updated ${applied} task${applied === 1 ? "" : "s"}${suffix}`,
+  };
 }
 
 async function executeCreateTag(

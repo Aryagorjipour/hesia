@@ -14,7 +14,11 @@ import {
   stripHesiaActionBlocks,
 } from "@/lib/ai/json-action-fallback";
 import { executeConfirmedAction } from "@/lib/ai/action-executor";
-import { addTaskDraftToBoard } from "@/lib/chat/task-draft-actions";
+import {
+  addTaskSuggestionToBoard,
+  taskSuggestionFromCreateTaskPayload,
+  taskSuggestionFromDraft,
+} from "@/lib/chat/task-suggestion";
 import {
   setChatActionState,
   setChatActionStates,
@@ -112,21 +116,31 @@ export function MessageBubble({
 
     try {
       for (const { action, index } of pendingActionIndices) {
-        const result = await executeConfirmedAction(action);
-        if (result.ok) {
+        try {
+          if (action.type === "create_task") {
+            await addTaskSuggestionToBoard(
+              taskSuggestionFromCreateTaskPayload(action.payload),
+            );
+          } else {
+            const result = await executeConfirmedAction(action);
+            if (!result.ok) {
+              failed += 1;
+              continue;
+            }
+          }
           while (nextActionStates.length <= index) {
             nextActionStates.push(undefined);
           }
           nextActionStates[index] = "completed";
           added += 1;
-        } else {
+        } catch {
           failed += 1;
         }
       }
 
       for (const index of pendingDraftIndices) {
         try {
-          await addTaskDraftToBoard(taskDrafts[index]);
+          await addTaskSuggestionToBoard(taskSuggestionFromDraft(taskDrafts[index]));
           while (nextDraftStates.length <= index) {
             nextDraftStates.push(undefined);
           }

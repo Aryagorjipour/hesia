@@ -1,17 +1,9 @@
 import type { AiTaskDraft } from "@/lib/ai/structured-output";
-import { createTask } from "@/lib/db/mutations/tasks";
-import { todayISO } from "@/lib/utils/board-dates";
+import {
+  addTaskSuggestionToBoard,
+  taskSuggestionFromDraft,
+} from "@/lib/chat/task-suggestion";
 
 export async function addTaskDraftToBoard(draft: AiTaskDraft): Promise<void> {
-  await createTask({
-    title: draft.title,
-    description: draft.description,
-    notes: draft.notes,
-    status: draft.status === "archived" ? "todo" : draft.status,
-    isPlanned: draft.isPlanned,
-    tags: draft.tags,
-    category: draft.category,
-    durationMinutes: draft.durationMinutes,
-    boardDate: draft.status === "inbox" ? undefined : todayISO(),
-  });
+  await addTaskSuggestionToBoard(taskSuggestionFromDraft(draft));
 }

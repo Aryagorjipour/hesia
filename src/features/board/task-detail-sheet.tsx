@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { TagCategoryFields } from "@/features/board/tag-category-fields";
 import { TagChip } from "@/components/ui/tag-chip";
 import {
   Select,
@@ -115,13 +116,6 @@ function TaskDetailForm({
     lastTransition.reason === "carry_forward" &&
     !!task.boardDate &&
     !getBoardPermissions(task.boardDate).isReadOnly;
-
-  function toggleTag(name: string) {
-    if (!canEdit) return;
-    setSelectedTags((prev) =>
-      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
-    );
-  }
 
   const taskContext = useCallback(
     () => ({
@@ -448,9 +442,22 @@ function TaskDetailForm({
         />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label>Category</Label>
+      <TagCategoryFields
+        selectedTags={selectedTags}
+        onTagsChange={setSelectedTags}
+        category={category}
+        onCategoryChange={setCategory}
+        disabled={!canEdit}
+        tagLabelExtra={
+          <AiSuggestTrigger
+            label="Suggest tags"
+            aiConfigured={tagAiConfigured && canEdit}
+            loading={tagSuggestion.state === "loading"}
+            disabled={!title.trim() || !tagSuggestion.isOnline}
+            onSuggest={() => void tagSuggestion.suggest()}
+          />
+        }
+        categoryLabelExtra={
           <AiSuggestTrigger
             label="Suggest category"
             aiConfigured={categoryAiConfigured && canEdit}
@@ -462,109 +469,66 @@ function TaskDetailForm({
             }
             onSuggest={() => void categorySuggestion.suggest()}
           />
-        </div>
-        <Select
-          value={category || "none"}
-          onValueChange={(v) => setCategory(v === "none" ? "" : v)}
-          disabled={!canEdit}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.name} value={c.name}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <AiSuggestionFeedback
-          featureName="Task categorization"
-          state={categorySuggestion.state}
-          error={categorySuggestion.error}
-          isOnline={categorySuggestion.isOnline}
-          onAccept={categorySuggestion.accept}
-          onReject={categorySuggestion.reject}
-          preview={
-            categorySuggestion.suggestion ? (
-              <div className="space-y-1">
-                <p className="font-medium text-foreground">
-                  {categorySuggestion.suggestion.category ?? "None"}
-                </p>
-                {categorySuggestion.suggestion.reasoning && (
-                  <p className="text-xs text-muted-foreground">
-                    {categorySuggestion.suggestion.reasoning}
-                  </p>
-                )}
-              </div>
-            ) : null
-          }
-        />
-      </div>
-
-      {tags.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <Label>Tags</Label>
-            <AiSuggestTrigger
-              label="Suggest tags"
-              aiConfigured={tagAiConfigured && canEdit}
-              loading={tagSuggestion.state === "loading"}
-              disabled={!title.trim() || !tagSuggestion.isOnline}
-              onSuggest={() => void tagSuggestion.suggest()}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <TagChip
-                key={tag.name}
-                name={tag.name}
-                colorHex={tag.colorHex}
-                selected={selectedTags.includes(tag.name)}
-                onClick={() => toggleTag(tag.name)}
-              />
-            ))}
-          </div>
-          <AiSuggestionFeedback
-            featureName="Tag suggestions"
-            state={tagSuggestion.state}
-            error={tagSuggestion.error}
-            isOnline={tagSuggestion.isOnline}
-            onAccept={tagSuggestion.accept}
-            onReject={tagSuggestion.reject}
-            preview={
-              tagSuggestion.suggestion ? (
-                <div className="space-y-2">
-                  {tagSuggestion.suggestion.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {tagSuggestion.suggestion.tags.map((name) => {
-                        const tag = tags.find((t) => t.name === name);
-                        return (
-                          <TagChip
-                            key={name}
-                            name={name}
-                            colorHex={tag?.colorHex}
-                            selected
-                          />
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No tags suggested</p>
-                  )}
-                  {tagSuggestion.suggestion.reasoning && (
-                    <p className="text-xs text-muted-foreground">
-                      {tagSuggestion.suggestion.reasoning}
-                    </p>
-                  )}
+        }
+      />
+      <AiSuggestionFeedback
+        featureName="Tag suggestions"
+        state={tagSuggestion.state}
+        error={tagSuggestion.error}
+        isOnline={tagSuggestion.isOnline}
+        onAccept={tagSuggestion.accept}
+        onReject={tagSuggestion.reject}
+        preview={
+          tagSuggestion.suggestion ? (
+            <div className="space-y-2">
+              {tagSuggestion.suggestion.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {tagSuggestion.suggestion.tags.map((name) => {
+                    const tag = tags.find((t) => t.name === name);
+                    return (
+                      <TagChip
+                        key={name}
+                        name={name}
+                        colorHex={tag?.colorHex}
+                        selected
+                      />
+                    );
+                  })}
                 </div>
-              ) : null
-            }
-          />
-        </div>
-      )}
+              ) : (
+                <p className="text-muted-foreground">No tags suggested</p>
+              )}
+              {tagSuggestion.suggestion.reasoning && (
+                <p className="text-xs text-muted-foreground">
+                  {tagSuggestion.suggestion.reasoning}
+                </p>
+              )}
+            </div>
+          ) : null
+        }
+      />
+      <AiSuggestionFeedback
+        featureName="Task categorization"
+        state={categorySuggestion.state}
+        error={categorySuggestion.error}
+        isOnline={categorySuggestion.isOnline}
+        onAccept={categorySuggestion.accept}
+        onReject={categorySuggestion.reject}
+        preview={
+          categorySuggestion.suggestion ? (
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">
+                {categorySuggestion.suggestion.category ?? "None"}
+              </p>
+              {categorySuggestion.suggestion.reasoning && (
+                <p className="text-xs text-muted-foreground">
+                  {categorySuggestion.suggestion.reasoning}
+                </p>
+              )}
+            </div>
+          ) : null
+        }
+      />
 
       <div className="space-y-2">
         <Label htmlFor="edit-notes">Notes</Label>

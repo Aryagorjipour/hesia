@@ -8,7 +8,6 @@ import {
 } from "@/components/pwa/install-guidance";
 import { useInstallPrompt } from "@/lib/hooks/use-install-prompt";
 import { Button } from "@/components/ui/button";
-
 export function InstallPrompt() {
   const {
     canInstall,

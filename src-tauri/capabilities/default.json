@@ -1,0 +1,16 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for Hesia desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-focus",
+    "store:allow-get",
+    "store:allow-set",
+    "notification:allow-request-permission",
+    "notification:allow-notify",
+    "notification:allow-show"
+  ]
+}

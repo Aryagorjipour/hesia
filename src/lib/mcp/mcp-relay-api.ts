@@ -1,4 +1,5 @@
 import { McpServerConfigSchema, type McpServerConfig } from "@/types/mcp";
+import { platformInvoke } from "@/lib/platform/invoke";
 
 async function relayJson<T>(
   relayUrl: string,
@@ -31,9 +32,11 @@ async function relayJson<T>(
 export async function fetchRelayMcpServers(
   relayUrl: string,
 ): Promise<McpServerConfig[]> {
-  const data = await relayJson<{ ok: boolean; servers: unknown[] }>(
-    relayUrl,
-    "/mcp/servers",
+  const data = await platformInvoke<{ ok: boolean; servers: unknown[] }>(
+    "mcp_servers_get",
+    {},
+    () =>
+      relayJson<{ ok: boolean; servers: unknown[] }>(relayUrl, "/mcp/servers"),
   );
   const servers: McpServerConfig[] = [];
   for (const raw of data.servers ?? []) {
@@ -47,13 +50,18 @@ export async function saveRelayMcpServers(
   relayUrl: string,
   servers: McpServerConfig[],
 ): Promise<McpServerConfig[]> {
-  const data = await relayJson<{ ok: boolean; servers: unknown[] }>(
-    relayUrl,
-    "/mcp/servers",
-    {
-      method: "PUT",
-      body: JSON.stringify({ servers }),
-    },
+  const data = await platformInvoke<{ ok: boolean; servers: unknown[] }>(
+    "mcp_servers_put",
+    { servers },
+    () =>
+      relayJson<{ ok: boolean; servers: unknown[] }>(
+        relayUrl,
+        "/mcp/servers",
+        {
+          method: "PUT",
+          body: JSON.stringify({ servers }),
+        },
+      ),
   );
   const saved: McpServerConfig[] = [];
   for (const raw of data.servers ?? []) {

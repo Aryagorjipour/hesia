@@ -23,10 +23,14 @@ import { db } from "@/lib/db/schema";
 import { loadSampleData, hasExistingTasks } from "@/lib/db/seed";
 import { v4 as uuidv4 } from "uuid";
 import { toISO } from "@/lib/utils/dates";
+import { formatJalaliDate, formatGregorianDate } from "@/lib/calendar/jalali-display";
+import type { LocaleSettings } from "@/types/settings";
+import { DEFAULT_LOCALE_SETTINGS } from "@/lib/i18n/locale-defaults";
 
 const STEPS = [
   "welcome",
   "profile",
+  "locale",
   "philosophy",
   "calendar",
   "goals",
@@ -46,6 +50,7 @@ export function OnboardingWizard() {
   );
   const [loading, setLoading] = useState(false);
   const [welcomeIntroDone, setWelcomeIntroDone] = useState(false);
+  const [locale, setLocale] = useState<LocaleSettings>(DEFAULT_LOCALE_SETTINGS);
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -73,6 +78,7 @@ export function OnboardingWizard() {
       await db.settings.update("default", {
         onboardingComplete: true,
         weekStartsOn,
+        locale,
         profile: {
           username: username.trim() || undefined,
           workspaceName: workspaceName.trim() || undefined,
@@ -176,6 +182,65 @@ export function OnboardingWizard() {
                       Continue
                     </Button>
                   </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {step === "locale" && (
+              <Card className="rounded-3xl">
+                <CardHeader>
+                  <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15">
+                    <CalendarDays className="h-5 w-5 text-accent" />
+                  </div>
+                  <CardTitle>Calendar & direction</CardTitle>
+                  <CardDescription>
+                    Choose how dates display and which direction text flows. You
+                    can change this later in Settings.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        { calendar: "gregorian", direction: "ltr" },
+                        { calendar: "jalali", direction: "rtl" },
+                      ] as LocaleSettings[]
+                    ).map((option) => {
+                      const isSelected =
+                        locale.calendar === option.calendar &&
+                        locale.direction === option.direction;
+                      const today = new Date();
+                      const preview =
+                        option.calendar === "jalali"
+                          ? formatJalaliDate(today, "short")
+                          : formatGregorianDate(today, "MMM d, yyyy");
+                      return (
+                        <button
+                          key={option.calendar}
+                          type="button"
+                          onClick={() => setLocale(option)}
+                          className={`rounded-2xl border p-4 text-start transition-all ${
+                            isSelected
+                              ? "border-accent bg-accent/10"
+                              : "border-border bg-card/50 hover:bg-muted/20"
+                          }`}
+                          dir={option.direction}
+                        >
+                          <p className="text-sm font-medium text-foreground">
+                            {option.calendar === "jalali"
+                              ? "Jalali (شمسی)"
+                              : "Gregorian"}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {preview}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button onClick={next} className="w-full">
+                    Continue
+                  </Button>
                 </CardContent>
               </Card>
             )}

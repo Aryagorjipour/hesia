@@ -3,11 +3,12 @@
 import { RefreshCw } from "lucide-react";
 import { useSwUpdate } from "@/lib/hooks/use-sw-update";
 import { Button } from "@/components/ui/button";
+import { isDesktop } from "@/lib/platform";
 
 export function PwaUpdateBanner() {
   const { updateAvailable, applyUpdate } = useSwUpdate();
 
-  if (!updateAvailable) return null;
+  if (isDesktop() || !updateAvailable) return null;
 
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-accent/20 bg-accent/10 px-3 py-2 sm:px-4">

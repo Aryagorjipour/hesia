@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { APP_META } from "@/lib/app/meta";
+import { isDesktop } from "@/lib/platform";
 import {
   isFirefox,
   isFirefoxMobile,
@@ -108,6 +109,23 @@ export function useInstallPrompt() {
     dismiss();
     return false;
   }, [deferredPrompt, dismiss]);
+
+  if (isDesktop()) {
+    return {
+      canInstall: false,
+      isIOS: false,
+      isFirefox: false,
+      isFirefoxMobile: false,
+      needsManualInstall: false,
+      installBlockReason: "desktop" as InstallBlockReason,
+      installBlocked: true,
+      liveInstallUrl: APP_META.siteUrl,
+      installed: false,
+      showPrompt: false,
+      install: async () => false,
+      dismiss: () => {},
+    };
+  }
 
   return {
     canInstall: !!deferredPrompt,

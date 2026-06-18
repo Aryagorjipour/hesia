@@ -126,6 +126,7 @@ export const AppSettingsSchema = z.object({
     url: "http://127.0.0.1:8787",
   }),
   mcpServers: z.array(McpServerConfigSchema).default([]),
+  desktopCloseToTray: z.boolean().default(false),
   version: z.string().default("0.1.0"),
 });
 

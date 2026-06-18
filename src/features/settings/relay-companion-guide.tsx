@@ -3,9 +3,12 @@
 import { useState } from "react";
 import { ChevronDown, Laptop, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { isDesktop } from "@/lib/platform";
 
 export function RelayCompanionGuide() {
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  if (isDesktop()) return null;
 
   return (
     <div className="space-y-3 rounded-xl border border-border/60 bg-muted/10 p-4">

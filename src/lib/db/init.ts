@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     url: "http://127.0.0.1:8787",
   },
   mcpServers: [],
+  desktopCloseToTray: false,
   version: "0.1.0",
 };
 

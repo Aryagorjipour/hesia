@@ -182,7 +182,7 @@ export function WelcomeStep({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: RIVER_EASE }}
         >
-          <HesiaLogo size={72} animated={false} priority />
+          <HesiaLogo size={96} animated={false} priority />
         </motion.div>
       )}
 
@@ -201,7 +201,7 @@ export function WelcomeStep({
             className="absolute inset-0 -m-8 rounded-full bg-accent/25 blur-2xl"
             style={{ opacity: trailOpacity }}
           />
-          <HesiaLogo size={72} animated={false} priority />
+          <HesiaLogo size={96} animated={false} priority />
         </motion.div>
       )}
 
@@ -214,9 +214,9 @@ export function WelcomeStep({
             <CardHeader className="text-center">
               <div
                 ref={slotRef}
-                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center"
+                className="mx-auto mb-4 flex h-20 w-full max-w-xl items-center justify-center"
               >
-                <HesiaLogo size={64} animated={false} />
+                <HesiaLogo size={96} animated={false} />
               </div>
               <CardTitle className="text-2xl">Welcome to Hesia</CardTitle>
               <CardDescription className="mt-2 text-base leading-relaxed">
@@ -254,9 +254,9 @@ export function WelcomeStep({
                 className="mx-auto mb-4 flex justify-center"
               >
                 {showCard ? (
-                  <HesiaLogo variant="horizontal" animated={false} priority />
+                  <HesiaLogo variant="banner" animated={false} priority />
                 ) : (
-                  <HesiaLogo size={64} animated={false} priority />
+                  <HesiaLogo size={96} animated={false} priority />
                 )}
               </motion.div>
 

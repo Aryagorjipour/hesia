@@ -4,6 +4,7 @@ import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { shouldIgnoreDialogOutsideInteraction } from "@/lib/utils/radix-portal-guard";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -30,10 +31,33 @@ interface DialogContentProps
   showClose?: boolean;
 }
 
+function guardDialogOutsideInteraction(
+  event: Parameters<
+    NonNullable<
+      React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>["onInteractOutside"]
+    >
+  >[0],
+) {
+  if (shouldIgnoreDialogOutsideInteraction(event.target)) {
+    event.preventDefault();
+  }
+}
+
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   DialogContentProps
->(({ className, children, showClose = true, ...props }, ref) => (
+>(
+  (
+    {
+      className,
+      children,
+      showClose = true,
+      onInteractOutside,
+      onPointerDownOutside,
+      ...props
+    },
+    ref,
+  ) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -42,6 +66,14 @@ const DialogContent = React.forwardRef<
         "fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-3xl border border-border bg-card p-6 shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className,
       )}
+      onInteractOutside={(event) => {
+        onInteractOutside?.(event);
+        guardDialogOutsideInteraction(event);
+      }}
+      onPointerDownOutside={(event) => {
+        onPointerDownOutside?.(event);
+        guardDialogOutsideInteraction(event);
+      }}
       {...props}
     >
       {children}
@@ -53,7 +85,8 @@ const DialogContent = React.forwardRef<
       )}
     </DialogPrimitive.Content>
   </DialogPortal>
-));
+  ),
+);
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({

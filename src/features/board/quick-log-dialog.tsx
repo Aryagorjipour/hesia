@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -13,16 +13,12 @@ import {
   ensureCategoryExists,
 } from "@/lib/db/mutations/tasks";
 import { generateTaskFromQuickLog } from "@/lib/ai/quick-log-task";
-import { suggestTags } from "@/lib/ai/suggest-tags";
-import { suggestCategory } from "@/lib/ai/suggest-category";
-import { estimateTime } from "@/lib/ai/estimate-time";
-import { suggestPlanned } from "@/lib/ai/suggest-planned";
+import type { AiTaskDraft } from "@/lib/ai/structured-output";
 import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
 import {
-  AiSuggestTrigger,
-  AiSuggestionFeedback,
-} from "./ai-suggestions-panel";
-import { useAiSuggestion } from "./use-ai-suggestion";
+  buildTitleFromQuickLog,
+  inferFromQuickLog,
+} from "@/lib/utils/task-inference";
 import { toast } from "@/lib/toast";
 import { toISO } from "@/lib/utils/dates";
 import type { BoardPermissions } from "@/lib/utils/board-dates";
@@ -37,18 +33,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { TagChip } from "@/components/ui/tag-chip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface QuickLogDialogProps {
   open: boolean;
@@ -56,6 +42,38 @@ interface QuickLogDialogProps {
   initialStatus?: TaskStatus;
   boardDate: string;
   permissions: BoardPermissions;
+}
+
+async function persistQuickLogDraft(
+  draft: AiTaskDraft,
+  boardDate: string,
+): Promise<void> {
+  for (const tag of draft.tags) await ensureTagExists(tag);
+  if (draft.category) await ensureCategoryExists(draft.category);
+
+  await createTask({
+    title: draft.title,
+    description: draft.description,
+    notes: draft.notes,
+    status: draft.status,
+    isPlanned: draft.isPlanned,
+    tags: draft.tags,
+    category: draft.category,
+    durationMinutes: draft.durationMinutes,
+    completedAt: draft.status === "done" ? toISO(new Date()) : undefined,
+    boardDate: draft.status === "inbox" ? undefined : boardDate,
+  });
+}
+
+function formatCreatedSummary(draft: AiTaskDraft): string {
+  const parts = [
+    COLUMN_LABELS[draft.status],
+    draft.isPlanned ? "planned" : "flow win",
+  ];
+  if (draft.durationMinutes != null) {
+    parts.push(`${draft.durationMinutes} min`);
+  }
+  return parts.join(" · ");
 }
 
 function QuickLogForm({
@@ -76,15 +94,6 @@ function QuickLogForm({
   const categories = useLiveQuery(() => db.categories.toArray()) ?? [];
   const settings = useLiveQuery(() => db.settings.get("default"));
   const aiConfigured = isAiConfiguredForFeature(settings, "quick-log");
-  const tagAiConfigured = isAiConfiguredForFeature(settings, "tagging");
-  const categoryAiConfigured = isAiConfiguredForFeature(settings, "categorization");
-  const timeAiConfigured = isAiConfiguredForFeature(settings, "time-estimate");
-  const plannedAiConfigured = isAiConfiguredForFeature(settings, "planned-suggest");
-  const anyFieldAiConfigured =
-    tagAiConfigured ||
-    categoryAiConfigured ||
-    timeAiConfigured ||
-    plannedAiConfigured;
 
   const allowedStatuses = useMemo(
     () => DEFAULT_COLUMNS.filter((s) => permissions.canAdd(s)),
@@ -95,598 +104,145 @@ function QuickLogForm({
     ? initialStatus
     : allowedStatuses[0] ?? "todo";
 
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<TaskStatus>(defaultStatus);
-  const [isPlanned, setIsPlanned] = useState(false);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [category, setCategory] = useState<string>("");
-  const [duration, setDuration] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-  const [aiGenerating, setAiGenerating] = useState(false);
-  const [aiFilled, setAiFilled] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function clampStatus(next: TaskStatus): TaskStatus {
     return allowedStatuses.includes(next) ? next : defaultStatus;
   }
 
-  function applyDraftToForm(draft: {
-    title: string;
-    description?: string;
-    notes?: string;
-    status: TaskStatus;
-    isPlanned: boolean;
-    tags: string[];
-    category?: string;
-    durationMinutes?: number;
-  }) {
-    setTitle(draft.title);
-    setDescription(draft.description ?? "");
-    setNotes(draft.notes ?? "");
-    setStatus(clampStatus(draft.status));
-    setIsPlanned(draft.isPlanned);
-    setSelectedTags(draft.tags);
-    setCategory(draft.category ?? "");
-    setDuration(
-      draft.durationMinutes ? String(draft.durationMinutes) : "",
+  function buildLocalDraft(text: string): AiTaskDraft {
+    const inference = inferFromQuickLog(text);
+    const knownTags = inference.suggestedTags.filter((name) =>
+      tags.some((t) => t.name === name),
     );
-    setAiFilled(true);
+    const category =
+      inference.suggestedCategory &&
+      categories.some((c) => c.name === inference.suggestedCategory)
+        ? inference.suggestedCategory
+        : undefined;
+
+    return {
+      title: buildTitleFromQuickLog(text),
+      notes: text,
+      status: clampStatus(inference.status),
+      isPlanned: inference.isPlanned,
+      tags: knownTags,
+      category,
+      durationMinutes: inference.durationMinutes,
+    };
   }
 
-  async function createWithAi() {
-    const prompt = aiPrompt.trim();
-    if (!prompt || !aiConfigured) return;
-
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      toast.warning({
-        title: "You're offline",
-        description: "AI needs an internet connection.",
-      });
-      return;
-    }
-
-    setAiGenerating(true);
-    try {
-      const draft = await generateTaskFromQuickLog(prompt, settings, {
+  async function extractDraft(text: string): Promise<AiTaskDraft> {
+    if (aiConfigured) {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("AI needs an internet connection");
+      }
+      return generateTaskFromQuickLog(text, settings, {
         boardDate,
         allowedStatuses,
         tagNames: tags.map((t) => t.name),
         categoryNames: categories.map((c) => c.name),
       });
+    }
+    return buildLocalDraft(text);
+  }
 
-      for (const tag of draft.tags) await ensureTagExists(tag);
-      if (draft.category) await ensureCategoryExists(draft.category);
+  async function handleLogIt() {
+    const text = prompt.trim();
+    if (!text) return;
 
-      await createTask({
-        title: draft.title,
-        description: draft.description,
-        notes: draft.notes,
-        status: draft.status,
-        isPlanned: draft.isPlanned,
-        tags: draft.tags,
-        category: draft.category,
-        durationMinutes: draft.durationMinutes,
-        completedAt: draft.status === "done" ? toISO(new Date()) : undefined,
-        boardDate: draft.status === "inbox" ? undefined : boardDate,
-      });
-
+    setSubmitting(true);
+    try {
+      const draft = await extractDraft(text);
+      await persistQuickLogDraft(draft, boardDate);
       toast.success({
         title: "Task created",
-        description: `"${draft.title}" added via AI.`,
+        description: `"${draft.title}" — ${formatCreatedSummary(draft)}`,
       });
       onClose();
     } catch (err) {
       toast.error({
-        title: "AI could not create task",
+        title: aiConfigured ? "AI could not log task" : "Could not log task",
         description:
           err instanceof Error ? err.message : "Something went wrong",
       });
     } finally {
-      setAiGenerating(false);
-    }
-  }
-
-  async function fillDetailsWithAi() {
-    const prompt = aiPrompt.trim();
-    if (!prompt || !aiConfigured) return;
-
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      toast.warning({
-        title: "You're offline",
-        description: "AI needs an internet connection.",
-      });
-      return;
-    }
-
-    setAiGenerating(true);
-    try {
-      const draft = await generateTaskFromQuickLog(prompt, settings, {
-        boardDate,
-        allowedStatuses,
-        tagNames: tags.map((t) => t.name),
-        categoryNames: categories.map((c) => c.name),
-      });
-      applyDraftToForm(draft);
-      toast.success({
-        title: "Fields filled",
-        description: "Review the task details below, then add to board.",
-      });
-    } catch (err) {
-      toast.error({
-        title: "AI could not fill fields",
-        description:
-          err instanceof Error ? err.message : "Something went wrong",
-      });
-    } finally {
-      setAiGenerating(false);
+      setSubmitting(false);
     }
   }
 
   function askInChat() {
-    const draft = aiPrompt.trim();
-    if (!draft) return;
+    const text = prompt.trim();
+    if (!text) return;
     setPendingChatDraft(
-      `I want to log this on my board: "${draft}". Ask one short follow-up if needed, then draft a [TASK DRAFT].`,
+      `I want to log this on my board: "${text}". Ask one short follow-up if needed, then draft a [TASK DRAFT].`,
     );
     onClose();
     router.push("/chat");
   }
 
-  function toggleTag(name: string) {
-    setSelectedTags((prev) =>
-      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
-    );
-  }
+  const promptHelp = aiConfigured
+    ? "One prompt — AI extracts title, column, planned status, duration, tags, and category, then creates the task."
+    : "One prompt — we infer column, planned status, duration, and tags from your words.";
 
-  const suggestionSource = useCallback(() => {
-    const sourceText = aiPrompt.trim() || title.trim();
-    return {
-      title: sourceText,
-      description: description.trim() || undefined,
-      notes: notes.trim() || undefined,
-      status: COLUMN_LABELS[status],
-      isPlanned,
-      tags: selectedTags,
-      category: category || undefined,
-      durationMinutes: duration ? parseInt(duration, 10) : undefined,
-    };
-  }, [
-    aiPrompt,
-    title,
-    description,
-    notes,
-    status,
-    isPlanned,
-    selectedTags,
-    category,
-    duration,
-  ]);
-
-  const hasSuggestionSource = !!(aiPrompt.trim() || title.trim());
-
-  const tagSuggestion = useAiSuggestion({
-    aiConfigured: tagAiConfigured,
-    fetchSuggestion: () =>
-      suggestTags(settings, {
-        ...suggestionSource(),
-        currentTags: selectedTags,
-        availableTags: tags.map((t) => t.name),
-      }),
-    onAccept: (result) => {
-      setSelectedTags((prev) => [...new Set([...prev, ...result.tags])]);
-    },
-  });
-
-  const categorySuggestion = useAiSuggestion({
-    aiConfigured: categoryAiConfigured,
-    fetchSuggestion: () =>
-      suggestCategory(settings, {
-        ...suggestionSource(),
-        currentCategory: category || undefined,
-        availableCategories: categories.map((c) => c.name),
-      }),
-    onAccept: (result) => {
-      if (result.category) setCategory(result.category);
-    },
-  });
-
-  const timeSuggestion = useAiSuggestion({
-    aiConfigured: timeAiConfigured,
-    fetchSuggestion: () =>
-      estimateTime(settings, {
-        ...suggestionSource(),
-        currentDurationMinutes: duration ? parseInt(duration, 10) : undefined,
-      }),
-    onAccept: (result) => {
-      setDuration(String(result.durationMinutes));
-    },
-  });
-
-  const plannedSuggestion = useAiSuggestion({
-    aiConfigured: plannedAiConfigured,
-    fetchSuggestion: () =>
-      suggestPlanned(settings, {
-        ...suggestionSource(),
-        currentIsPlanned: isPlanned,
-      }),
-    onAccept: (result) => {
-      setIsPlanned(result.isPlanned);
-    },
-  });
-
-  async function handleSave() {
-    const finalTitle = title.trim();
-    if (!finalTitle || !permissions.canAdd(status)) return;
-
-    setSaving(true);
-    try {
-      for (const tag of selectedTags) await ensureTagExists(tag);
-      if (category) await ensureCategoryExists(category);
-
-      await createTask({
-        title: finalTitle,
-        description: description.trim() || undefined,
-        notes: notes.trim() || undefined,
-        status,
-        isPlanned,
-        tags: selectedTags,
-        category: category || undefined,
-        durationMinutes: duration ? parseInt(duration, 10) : undefined,
-        completedAt: status === "done" ? toISO(new Date()) : undefined,
-        boardDate: status === "inbox" ? undefined : boardDate,
-      });
-
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  }
+  const promptPlaceholder = aiConfigured
+    ? 'e.g. "Just finished a planned 25min yoga session" or "Need to spend 2 hours on Q3 content calendar tomorrow"'
+    : 'e.g. "Just finished 25min yoga" or "Plan Q3 content calendar"';
 
   return (
     <div className="space-y-4">
-      {aiConfigured && (
-        <div className="space-y-3 rounded-2xl border border-accent/25 bg-accent/5 p-4">
-          <div className="flex items-start gap-2">
+      <div className="space-y-3 rounded-2xl border border-accent/25 bg-accent/5 p-4">
+        <div className="flex items-start gap-2">
+          {aiConfigured && (
             <Bot className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
-            <div className="min-w-0 space-y-1">
-              <Label htmlFor="quick-ai-prompt" className="text-foreground">
-                Tell AI what happened
-              </Label>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Describe in plain language. AI picks the{" "}
-                <span className="text-foreground/80">title</span>,{" "}
-                <span className="text-foreground/80">description</span>,{" "}
-                <span className="text-foreground/80">notes</span>, column,
-                tags, and category — then creates the task.
-              </p>
-            </div>
-          </div>
-          <Textarea
-            id="quick-ai-prompt"
-            placeholder='e.g. "Just finished 25min yoga" or "Plan Q3 content calendar"'
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            rows={3}
-            autoFocus
-            disabled={aiGenerating}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              onClick={() => void createWithAi()}
-              disabled={!aiPrompt.trim() || aiGenerating}
-            >
-              <Sparkles className="h-4 w-4" />
-              {aiGenerating ? "Creating…" : "Create with AI"}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => void fillDetailsWithAi()}
-              disabled={!aiPrompt.trim() || aiGenerating}
-            >
-              Fill fields to review
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={askInChat}
-              disabled={!aiPrompt.trim() || aiGenerating}
-            >
-              Ask in Companion
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {anyFieldAiConfigured && hasSuggestionSource && (
-        <div className="space-y-2 rounded-2xl border border-border/60 bg-card/30 p-3">
-          <p className="text-xs text-muted-foreground">
-            Optional AI suggestions from your text — review before accepting.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {tagAiConfigured && tags.length > 0 && (
-              <AiSuggestTrigger
-                label="Tags"
-                aiConfigured
-                loading={tagSuggestion.state === "loading"}
-                disabled={!tagSuggestion.isOnline}
-                onSuggest={() => void tagSuggestion.suggest()}
-              />
-            )}
-            {categoryAiConfigured && categories.length > 0 && (
-              <AiSuggestTrigger
-                label="Category"
-                aiConfigured
-                loading={categorySuggestion.state === "loading"}
-                disabled={!categorySuggestion.isOnline}
-                onSuggest={() => void categorySuggestion.suggest()}
-              />
-            )}
-            {timeAiConfigured && (
-              <AiSuggestTrigger
-                label="Time"
-                aiConfigured
-                loading={timeSuggestion.state === "loading"}
-                disabled={!timeSuggestion.isOnline}
-                onSuggest={() => void timeSuggestion.suggest()}
-              />
-            )}
-            {plannedAiConfigured && (
-              <AiSuggestTrigger
-                label="Planned"
-                aiConfigured
-                loading={plannedSuggestion.state === "loading"}
-                disabled={!plannedSuggestion.isOnline}
-                onSuggest={() => void plannedSuggestion.suggest()}
-              />
-            )}
-          </div>
-          <AiSuggestionFeedback
-            featureName="Tag suggestions"
-            state={tagSuggestion.state}
-            error={tagSuggestion.error}
-            isOnline={tagSuggestion.isOnline}
-            onAccept={tagSuggestion.accept}
-            onReject={tagSuggestion.reject}
-            preview={
-              tagSuggestion.suggestion ? (
-                <div className="space-y-2">
-                  {tagSuggestion.suggestion.tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {tagSuggestion.suggestion.tags.map((name) => {
-                        const tag = tags.find((t) => t.name === name);
-                        return (
-                          <TagChip
-                            key={name}
-                            name={name}
-                            colorHex={tag?.colorHex}
-                            selected
-                          />
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No tags suggested</p>
-                  )}
-                  {tagSuggestion.suggestion.reasoning && (
-                    <p className="text-xs text-muted-foreground">
-                      {tagSuggestion.suggestion.reasoning}
-                    </p>
-                  )}
-                </div>
-              ) : null
-            }
-          />
-          <AiSuggestionFeedback
-            featureName="Task categorization"
-            state={categorySuggestion.state}
-            error={categorySuggestion.error}
-            isOnline={categorySuggestion.isOnline}
-            onAccept={categorySuggestion.accept}
-            onReject={categorySuggestion.reject}
-            preview={
-              categorySuggestion.suggestion ? (
-                <div className="space-y-1">
-                  <p className="font-medium text-foreground">
-                    {categorySuggestion.suggestion.category ?? "None"}
-                  </p>
-                  {categorySuggestion.suggestion.reasoning && (
-                    <p className="text-xs text-muted-foreground">
-                      {categorySuggestion.suggestion.reasoning}
-                    </p>
-                  )}
-                </div>
-              ) : null
-            }
-          />
-          <AiSuggestionFeedback
-            featureName="Time estimates"
-            state={timeSuggestion.state}
-            error={timeSuggestion.error}
-            isOnline={timeSuggestion.isOnline}
-            onAccept={timeSuggestion.accept}
-            onReject={timeSuggestion.reject}
-            preview={
-              timeSuggestion.suggestion ? (
-                <div className="space-y-1">
-                  <p className="font-medium text-foreground">
-                    {timeSuggestion.suggestion.durationMinutes} minutes
-                  </p>
-                  {timeSuggestion.suggestion.reasoning && (
-                    <p className="text-xs text-muted-foreground">
-                      {timeSuggestion.suggestion.reasoning}
-                    </p>
-                  )}
-                </div>
-              ) : null
-            }
-          />
-          <AiSuggestionFeedback
-            featureName="Planned task suggestions"
-            state={plannedSuggestion.state}
-            error={plannedSuggestion.error}
-            isOnline={plannedSuggestion.isOnline}
-            onAccept={plannedSuggestion.accept}
-            onReject={plannedSuggestion.reject}
-            preview={
-              plannedSuggestion.suggestion ? (
-                <div className="space-y-1">
-                  <p className="font-medium text-foreground">
-                    {plannedSuggestion.suggestion.isPlanned
-                      ? "Planned work"
-                      : "Flow win (unplanned)"}
-                  </p>
-                  {plannedSuggestion.suggestion.reasoning && (
-                    <p className="text-xs text-muted-foreground">
-                      {plannedSuggestion.suggestion.reasoning}
-                    </p>
-                  )}
-                </div>
-              ) : null
-            }
-          />
-        </div>
-      )}
-
-      <div className="space-y-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {aiConfigured ? "Or edit task details" : "Task details"}
-          </p>
-          {aiConfigured && aiFilled && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              AI filled these — adjust anything before adding manually.
-            </p>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="title">Title</Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Short name on the board card"
-            autoFocus={!aiConfigured}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="description">Description</Label>
-          <Input
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional one-line summary"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="notes">Notes</Label>
-          <Textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional extra context or detail"
-            rows={2}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Column</Label>
-          <Select
-            value={status}
-            onValueChange={(v) => setStatus(clampStatus(v as TaskStatus))}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {allowedStatuses.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {COLUMN_LABELS[s]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Duration (min)</Label>
-          <Input
-            type="number"
-            min={1}
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            placeholder="Optional"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between rounded-2xl bg-muted/30 px-4 py-3">
-        <div>
-          <Label>Planned work</Label>
-          <p className="text-xs text-muted-foreground">
-            Off = flow win (ad-hoc)
-          </p>
-        </div>
-        <Switch checked={isPlanned} onCheckedChange={setIsPlanned} />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Category</Label>
-        <Select
-          value={category || "none"}
-          onValueChange={(v) => setCategory(v === "none" ? "" : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">None</SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c.name} value={c.name}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {tags.length > 0 && (
-        <div className="space-y-2">
-          <Label>Tags</Label>
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <TagChip
-                key={tag.name}
-                name={tag.name}
-                colorHex={tag.colorHex}
-                selected={selectedTags.includes(tag.name)}
-                onClick={() => toggleTag(tag.name)}
-              />
-            ))}
+          <div className="min-w-0 space-y-1">
+            <Label htmlFor="quick-log-prompt" className="text-foreground">
+              What happened?
+            </Label>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {promptHelp}
+            </p>
           </div>
         </div>
-      )}
+        <Textarea
+          id="quick-log-prompt"
+          placeholder={promptPlaceholder}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={4}
+          autoFocus
+          disabled={submitting}
+        />
+      </div>
 
-      <div className="flex gap-3 pt-2">
+      <div className="flex gap-3">
         <Button variant="ghost" className="flex-1" onClick={onClose}>
           Cancel
         </Button>
         <Button
           className="flex-1"
-          onClick={() => void handleSave()}
-          disabled={saving || !title.trim()}
+          onClick={() => void handleLogIt()}
+          disabled={!prompt.trim() || submitting}
         >
-          {saving ? "Saving..." : "Add to board"}
+          {aiConfigured && <Sparkles className="h-4 w-4" />}
+          {submitting ? "Logging…" : "Log it"}
         </Button>
       </div>
+
+      {aiConfigured && (
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={askInChat}
+            disabled={!prompt.trim() || submitting}
+          >
+            Ask in Companion instead
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

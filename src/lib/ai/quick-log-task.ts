@@ -28,8 +28,11 @@ Reply with ONLY valid JSON matching this schema:
 }
 
 Rules:
-- Past-tense wins → status "done", isPlanned false. Future/planning → "todo", isPlanned true.
-- Vague capture → status "inbox".
+- Extract ALL fields from the user's words only — never invent duration or planned status without evidence.
+- durationMinutes: parse explicit durations ("25min", "1.5 hours", "90 minutes"). Convert hours to minutes. Omit if not stated.
+- isPlanned: true for future/scheduled/intentional work ("plan", "need to", "tomorrow", "going to"). false for completed wins, ad-hoc flow, or past-tense activities.
+- Past-tense completed wins → status "done", isPlanned false. Future/planning → "todo", isPlanned true.
+- Vague capture → status "inbox", isPlanned false unless clearly planned.
 - title is the board card title, NOT the full user paragraph.
 - description = brief summary; notes = longer original detail when needed.
 - Only use tags/categories from the provided lists.`;

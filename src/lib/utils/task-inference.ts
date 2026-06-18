@@ -10,7 +10,6 @@ export interface QuickLogInference {
 
 const PAST_TENSE_PATTERNS = [
   /\b(finished|completed|did|done|just|walked|ran|read|wrote|called|fixed|built|shipped)\b/i,
-  /\b\d+\s*(min|mins|minutes|hr|hrs|hours)\b/i,
 ];
 
 const PLANNED_PATTERNS = [
@@ -34,6 +33,14 @@ const CATEGORY_HINTS: Record<string, RegExp> = {
   Learning: /\b(read|learn|course|study|book)\b/i,
   "Life Admin": /\b(email|inbox|call|appointment|bill|errand)\b/i,
 };
+
+/** First line of the log, trimmed for use as a board card title. */
+export function buildTitleFromQuickLog(text: string): string {
+  const trimmed = text.trim();
+  const firstLine = trimmed.split(/\n/)[0]?.trim() ?? trimmed;
+  if (firstLine.length <= 80) return firstLine;
+  return `${firstLine.slice(0, 77)}…`;
+}
 
 export function inferFromQuickLog(text: string): QuickLogInference {
   const trimmed = text.trim();

@@ -76,9 +76,9 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={reducedMotion ? 0 : 400}>
-      <aside
+      <div
         className={cn(
-          "relative hidden shrink-0 flex-col overflow-hidden border-r border-border bg-card/30 backdrop-blur-md lg:flex",
+          "relative hidden h-full shrink-0 lg:block",
           collapsed ? "w-[4.5rem]" : "w-60",
         )}
         style={{
@@ -91,20 +91,12 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setSidebarCollapsed(!collapsed)}
-          className={cn(
-            "absolute top-[4.25rem] z-20 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            collapsed ? "end-2" : "-end-3",
-          )}
-          style={{
-            transition: reducedMotion
-              ? undefined
-              : `inset-inline-end ${motionMs}ms ${SIDEBAR_EASE}`,
-          }}
+          className="absolute top-[4.25rem] end-0 z-50 flex h-7 w-7 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-md transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <ChevronLeft
             className={cn(
-              "h-3.5 w-3.5 transition-transform",
+              "h-4 w-4 transition-transform",
               collapsed && "rotate-180",
             )}
             style={{
@@ -116,6 +108,7 @@ export function Sidebar() {
           />
         </button>
 
+        <aside className="flex h-full w-full flex-col overflow-hidden border-r border-border bg-card/30 backdrop-blur-md">
         <div
           className={cn(
             "flex h-16 shrink-0 items-center border-b border-border/50",
@@ -260,7 +253,8 @@ export function Sidebar() {
         >
           <p className="text-[11px] text-muted-foreground/70">Local only.</p>
         </div>
-      </aside>
+        </aside>
+      </div>
     </TooltipProvider>
   );
 }

@@ -1,5 +1,14 @@
 import { z } from "zod";
+import {
+  AiFeatureRoutingSchema,
+  AiProviderPresetSchema,
+  AiProviderProfileSchema,
+} from "./ai-provider";
+import { McpServerConfigSchema } from "./mcp";
 import { TaskStatusSchema } from "./task";
+
+export { AiProviderPresetSchema };
+export type { AiProviderPreset } from "./ai-provider";
 
 export const ZenPresetSchema = z.enum([
   "sage-dune",
@@ -50,17 +59,6 @@ export const PresetWorkspaceConfigSchema = z.object({
 
 export type PresetWorkspaceConfig = z.infer<typeof PresetWorkspaceConfigSchema>;
 
-export const AiProviderPresetSchema = z.enum([
-  "grok",
-  "ollama",
-  "openrouter",
-  "openai",
-  "groq",
-  "custom",
-]);
-
-export type AiProviderPreset = z.infer<typeof AiProviderPresetSchema>;
-
 export const AiConfigSchema = z.object({
   providerPreset: AiProviderPresetSchema,
   baseUrl: z.string(),
@@ -78,6 +76,20 @@ export const WeekStartsOnSchema = z.number().int().min(0).max(6).default(1);
 
 export type WeekStartsOnSetting = z.infer<typeof WeekStartsOnSchema>;
 
+export const LocaleSettingsSchema = z.object({
+  calendar: z.enum(["jalali", "gregorian"]).default("jalali"),
+  direction: z.enum(["rtl", "ltr"]).default("rtl"),
+});
+
+export type LocaleSettings = z.infer<typeof LocaleSettingsSchema>;
+
+export const RelaySettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  url: z.string().default("http://127.0.0.1:8787"),
+});
+
+export type RelaySettings = z.infer<typeof RelaySettingsSchema>;
+
 export const AppSettingsSchema = z.object({
   id: z.literal("default"),
   onboardingComplete: z.boolean().default(false),
@@ -89,7 +101,10 @@ export const AppSettingsSchema = z.object({
   weekStartsOn: WeekStartsOnSchema,
   theme: z.enum(["light", "dark", "system"]).default("dark"),
   columnNames: z.record(TaskStatusSchema, z.string()).optional(),
+  /** @deprecated Use aiProfiles — migrated automatically in Dexie v6 */
   aiConfig: AiConfigSchema.optional(),
+  aiProfiles: z.array(AiProviderProfileSchema).optional(),
+  aiFeatureRouting: AiFeatureRoutingSchema.optional(),
   notifications: z
     .object({
       weeklyReflection: z.boolean().default(false),
@@ -102,6 +117,15 @@ export const AppSettingsSchema = z.object({
       reflectionHour: 18,
     }),
   dataDirectoryHint: z.string().optional(),
+  locale: LocaleSettingsSchema.default({
+    calendar: "jalali",
+    direction: "rtl",
+  }),
+  relay: RelaySettingsSchema.default({
+    enabled: false,
+    url: "http://127.0.0.1:8787",
+  }),
+  mcpServers: z.array(McpServerConfigSchema).default([]),
   version: z.string().default("0.1.0"),
 });
 

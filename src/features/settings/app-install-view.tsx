@@ -17,6 +17,7 @@ import {
 import { useInstallPrompt } from "@/lib/hooks/use-install-prompt";
 import { APP_META } from "@/lib/app/meta";
 import { Button } from "@/components/ui/button";
+import { OfflineDiagnosticsPanel } from "./offline-diagnostics-panel";
 
 export function AppInstallView() {
   const {
@@ -161,6 +162,8 @@ export function AppInstallView() {
           connection. AI chat and weekly reflections need internet.
         </p>
       </div>
+
+      <OfflineDiagnosticsPanel />
     </div>
   );
 }

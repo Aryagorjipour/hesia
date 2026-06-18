@@ -1,3 +1,4 @@
+export * from "./ai-actions";
 export * from "./task";
 export * from "./tag";
 export * from "./category";
@@ -5,3 +6,6 @@ export * from "./report";
 export * from "./chat";
 export * from "./settings";
 export * from "./export";
+export * from "./ai-suggestions";
+export * from "./mcp";
+export * from "./integration-extensions";

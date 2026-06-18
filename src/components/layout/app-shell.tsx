@@ -9,7 +9,6 @@ import { CommandPalette } from "@/components/command-palette/command-palette";
 import { MobileSearchFab } from "./mobile-search-fab";
 import { useReflectionReminder } from "@/lib/hooks/use-reflection-reminder";
 import { useGlobalShortcuts } from "@/lib/hooks/use-global-shortcuts";
-
 interface AppShellProps {
   children: React.ReactNode;
 }

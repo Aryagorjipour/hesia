@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WifiOff } from "lucide-react";
+import { withBasePath } from "@/lib/app/site";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
@@ -18,7 +19,7 @@ export default function OfflinePage() {
         opening the board — your data lives on this device.
       </p>
       <Button asChild className="mt-6">
-        <Link href="/board">Go to board</Link>
+        <Link href={withBasePath("/board")}>Go to board</Link>
       </Button>
     </div>
   );

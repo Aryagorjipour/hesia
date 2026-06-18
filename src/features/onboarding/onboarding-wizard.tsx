@@ -11,6 +11,7 @@ import {
   CalendarDays,
   User,
 } from "lucide-react";
+import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 import { WelcomeStep } from "./welcome-step";
 import { WeekStartPicker } from "@/features/settings/week-start-picker";
 import { DEFAULT_WEEK_STARTS_ON } from "@/lib/utils/week-config";
@@ -35,6 +36,7 @@ type Step = (typeof STEPS)[number];
 
 export function OnboardingWizard() {
   const router = useRouter();
+  const reducedMotion = usePrefersReducedMotion();
   const [step, setStep] = useState<Step>("welcome");
   const [username, setUsername] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
@@ -100,7 +102,10 @@ export function OnboardingWizard() {
           animate={{
             opacity: welcomeIntroDone || step !== "welcome" ? 1 : 0,
           }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          transition={{
+            duration: reducedMotion ? 0.01 : 0.5,
+            ease: [0.22, 1, 0.36, 1],
+          }}
           aria-hidden={!welcomeIntroDone && step === "welcome"}
         >
           {STEPS.map((s, i) => (
@@ -116,10 +121,10 @@ export function OnboardingWizard() {
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
-            initial={{ opacity: 0, y: 12 }}
+            initial={reducedMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.25 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+            transition={{ duration: reducedMotion ? 0.01 : 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
             {step === "welcome" && (
               <WelcomeStep

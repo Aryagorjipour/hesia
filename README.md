@@ -22,10 +22,14 @@ After the first visit, board, reports, and settings work offline. AI chat and we
 
 - Daily Kanban board with planned work and flow wins
 - Tags, categories, and weekly reports
-- Local AI companion (bring your own API key)
+- Multi-profile local AI (BYO OpenAI-compatible endpoints, per-feature model routing)
+- AI suggestions for tags, categories, time estimates, and planned work
+- Chat actions: create tasks, draft report emails, calendar events (confirm before apply)
+- Calendar: `.ics` download + Google Calendar deep-links; Jalali display default
+- Optional local relay (Bun) for SMTP email and MCP bridge — localhost only
 - Encrypted export/import (ZIP, JSON, `.hesia`)
-- 20 zen themes, workspace personalization
-- Full PWA — installable and offline-capable
+- 20 zen themes (default **Sage Dune** brand theme), RTL/Farsi with Vazirmatn
+- Full PWA — installable with hardened offline cold-start
 
 ## Development
 
@@ -40,9 +44,35 @@ Open [http://localhost:3000](http://localhost:3000).
 |---------|-------------|
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm run build:pages` | Static export for GitHub Pages |
+| `npm run build:pages` | Static export for GitHub Pages (injects offline HTML precache) |
 | `npm run start` | Production server |
 | `npm run lint` | ESLint |
+| `npm test` | Offline route unit tests |
+| `npm run relay` | Start local Bun relay (SMTP + MCP) — see `documentations/relay.md` |
+
+### Local relay (optional)
+
+```bash
+cd relay && bun install && cp config.example.json config.json
+npm run relay
+```
+
+Configure SMTP in `relay/config.json`. The app connects at **Settings → Integrations**.
+
+### Offline verification
+
+```bash
+npm run build:pages
+npx serve out -l 4173
+```
+
+Open `http://localhost:4173/hesia/board/`, visit once online, then DevTools → Network → Offline and reload after idle. **Settings → App** shows offline diagnostics.
+
+## Documentation
+
+- [documentations/relay.md](documentations/relay.md) — local SMTP relay
+- [documentations/integrations.md](documentations/integrations.md) — calendar, email, bot extension points
+- [documentations/mcp.md](documentations/mcp.md) — MCP client + local bridge
 
 ## GitHub Pages deployment
 

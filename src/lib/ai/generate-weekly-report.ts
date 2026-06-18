@@ -1,6 +1,7 @@
 import { parseISO } from "date-fns";
 import { db } from "@/lib/db/schema";
-import { streamChatCompletion, type ChatMessage } from "./client";
+import { streamFeatureCompletion } from "./ai-service";
+import { type ChatMessage } from "./client";
 import { buildReportGeneratorPrompt } from "@/prompts/report-generator";
 import { HESIA_SYSTEM_PROMPT_V1 } from "@/prompts/system";
 import {
@@ -8,7 +9,7 @@ import {
   formatStatsSectionForPrompt,
 } from "@/lib/stats/week-aggregator";
 import type { WeekLocalStats } from "@/types/report";
-import type { AiConfig } from "@/types/settings";
+import type { AppSettings } from "@/types/settings";
 import { formatWeekLabel } from "@/lib/utils/dates";
 import { normalizeWeekStartsOn } from "@/lib/utils/week-config";
 
@@ -83,16 +84,20 @@ ${tasksSection}`,
 }
 
 export async function generateWeeklyReportNarrative(
-  config: AiConfig,
+  settings: AppSettings | undefined,
   weekStart: string,
   stats: WeekLocalStats,
   callbacks: ReportStreamCallbacks,
 ): Promise<void> {
   const messages = await buildReportGenerationMessages(weekStart, stats);
 
-  await streamChatCompletion(config, { messages }, {
-    onToken: callbacks.onToken,
-    onDone: callbacks.onDone,
-    onError: callbacks.onError,
-  });
+  await streamFeatureCompletion(
+    { settings, feature: "reflection" },
+    { messages },
+    {
+      onToken: callbacks.onToken,
+      onDone: callbacks.onDone,
+      onError: callbacks.onError,
+    },
+  );
 }

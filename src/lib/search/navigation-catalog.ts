@@ -66,6 +66,14 @@ export const NAVIGATION_ITEMS: CommandItem[] = [
     keywords: ["openai", "api", "model", "llm"],
   },
   {
+    id: "page-settings-integrations",
+    type: "page",
+    label: "Integrations",
+    description: "Local relay, email, MCP servers",
+    href: "/settings/integrations",
+    keywords: ["relay", "smtp", "mcp", "email", "jalali", "locale"],
+  },
+  {
     id: "page-settings-app",
     type: "page",
     label: "App",

@@ -62,7 +62,7 @@ export function KanbanColumn({
             <button
               type="button"
               onClick={() => onAddClick(status)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/15 hover:text-accent active:scale-95"
+              className="touch-target flex items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent/15 hover:text-accent active:scale-95 sm:h-7 sm:w-7 sm:min-h-0 sm:min-w-0"
               aria-label={`Add task to ${label}`}
             >
               <Plus className="h-4 w-4" strokeWidth={1.5} />
@@ -106,7 +106,7 @@ export function KanbanColumn({
                 <button
                   type="button"
                   onClick={() => onAddClick(status)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground transition-all hover:bg-accent/15 hover:text-accent active:scale-95"
+                  className="touch-target flex items-center justify-center rounded-full bg-muted/50 text-muted-foreground transition-all hover:bg-accent/15 hover:text-accent active:scale-95"
                   aria-label={`Add task to ${label}`}
                 >
                   <Plus className="h-5 w-5" strokeWidth={1.5} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,16 @@ import {
   ensureCategoryExists,
 } from "@/lib/db/mutations/tasks";
 import { generateTaskFromQuickLog } from "@/lib/ai/quick-log-task";
-import { isAiConfigured } from "@/lib/ai/is-ai-configured";
+import { suggestTags } from "@/lib/ai/suggest-tags";
+import { suggestCategory } from "@/lib/ai/suggest-category";
+import { estimateTime } from "@/lib/ai/estimate-time";
+import { suggestPlanned } from "@/lib/ai/suggest-planned";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
+import {
+  AiSuggestTrigger,
+  AiSuggestionFeedback,
+} from "./ai-suggestions-panel";
+import { useAiSuggestion } from "./use-ai-suggestion";
 import { toast } from "@/lib/toast";
 import { toISO } from "@/lib/utils/dates";
 import type { BoardPermissions } from "@/lib/utils/board-dates";
@@ -66,8 +75,16 @@ function QuickLogForm({
   const tags = useLiveQuery(() => db.tags.toArray()) ?? [];
   const categories = useLiveQuery(() => db.categories.toArray()) ?? [];
   const settings = useLiveQuery(() => db.settings.get("default"));
-  const aiConfigured = isAiConfigured(settings?.aiConfig);
-  const aiConfig = settings?.aiConfig;
+  const aiConfigured = isAiConfiguredForFeature(settings, "quick-log");
+  const tagAiConfigured = isAiConfiguredForFeature(settings, "tagging");
+  const categoryAiConfigured = isAiConfiguredForFeature(settings, "categorization");
+  const timeAiConfigured = isAiConfiguredForFeature(settings, "time-estimate");
+  const plannedAiConfigured = isAiConfiguredForFeature(settings, "planned-suggest");
+  const anyFieldAiConfigured =
+    tagAiConfigured ||
+    categoryAiConfigured ||
+    timeAiConfigured ||
+    plannedAiConfigured;
 
   const allowedStatuses = useMemo(
     () => DEFAULT_COLUMNS.filter((s) => permissions.canAdd(s)),
@@ -120,7 +137,7 @@ function QuickLogForm({
 
   async function createWithAi() {
     const prompt = aiPrompt.trim();
-    if (!prompt || !aiConfig) return;
+    if (!prompt || !aiConfigured) return;
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       toast.warning({
@@ -132,7 +149,7 @@ function QuickLogForm({
 
     setAiGenerating(true);
     try {
-      const draft = await generateTaskFromQuickLog(prompt, aiConfig, {
+      const draft = await generateTaskFromQuickLog(prompt, settings, {
         boardDate,
         allowedStatuses,
         tagNames: tags.map((t) => t.name),
@@ -173,7 +190,7 @@ function QuickLogForm({
 
   async function fillDetailsWithAi() {
     const prompt = aiPrompt.trim();
-    if (!prompt || !aiConfig) return;
+    if (!prompt || !aiConfigured) return;
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       toast.warning({
@@ -185,7 +202,7 @@ function QuickLogForm({
 
     setAiGenerating(true);
     try {
-      const draft = await generateTaskFromQuickLog(prompt, aiConfig, {
+      const draft = await generateTaskFromQuickLog(prompt, settings, {
         boardDate,
         allowedStatuses,
         tagNames: tags.map((t) => t.name),
@@ -222,6 +239,82 @@ function QuickLogForm({
       prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
     );
   }
+
+  const suggestionSource = useCallback(() => {
+    const sourceText = aiPrompt.trim() || title.trim();
+    return {
+      title: sourceText,
+      description: description.trim() || undefined,
+      notes: notes.trim() || undefined,
+      status: COLUMN_LABELS[status],
+      isPlanned,
+      tags: selectedTags,
+      category: category || undefined,
+      durationMinutes: duration ? parseInt(duration, 10) : undefined,
+    };
+  }, [
+    aiPrompt,
+    title,
+    description,
+    notes,
+    status,
+    isPlanned,
+    selectedTags,
+    category,
+    duration,
+  ]);
+
+  const hasSuggestionSource = !!(aiPrompt.trim() || title.trim());
+
+  const tagSuggestion = useAiSuggestion({
+    aiConfigured: tagAiConfigured,
+    fetchSuggestion: () =>
+      suggestTags(settings, {
+        ...suggestionSource(),
+        currentTags: selectedTags,
+        availableTags: tags.map((t) => t.name),
+      }),
+    onAccept: (result) => {
+      setSelectedTags((prev) => [...new Set([...prev, ...result.tags])]);
+    },
+  });
+
+  const categorySuggestion = useAiSuggestion({
+    aiConfigured: categoryAiConfigured,
+    fetchSuggestion: () =>
+      suggestCategory(settings, {
+        ...suggestionSource(),
+        currentCategory: category || undefined,
+        availableCategories: categories.map((c) => c.name),
+      }),
+    onAccept: (result) => {
+      if (result.category) setCategory(result.category);
+    },
+  });
+
+  const timeSuggestion = useAiSuggestion({
+    aiConfigured: timeAiConfigured,
+    fetchSuggestion: () =>
+      estimateTime(settings, {
+        ...suggestionSource(),
+        currentDurationMinutes: duration ? parseInt(duration, 10) : undefined,
+      }),
+    onAccept: (result) => {
+      setDuration(String(result.durationMinutes));
+    },
+  });
+
+  const plannedSuggestion = useAiSuggestion({
+    aiConfigured: plannedAiConfigured,
+    fetchSuggestion: () =>
+      suggestPlanned(settings, {
+        ...suggestionSource(),
+        currentIsPlanned: isPlanned,
+      }),
+    onAccept: (result) => {
+      setIsPlanned(result.isPlanned);
+    },
+  });
 
   async function handleSave() {
     const finalTitle = title.trim();
@@ -305,6 +398,156 @@ function QuickLogForm({
               Ask in Companion
             </Button>
           </div>
+        </div>
+      )}
+
+      {anyFieldAiConfigured && hasSuggestionSource && (
+        <div className="space-y-2 rounded-2xl border border-border/60 bg-card/30 p-3">
+          <p className="text-xs text-muted-foreground">
+            Optional AI suggestions from your text — review before accepting.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {tagAiConfigured && tags.length > 0 && (
+              <AiSuggestTrigger
+                label="Tags"
+                aiConfigured
+                loading={tagSuggestion.state === "loading"}
+                disabled={!tagSuggestion.isOnline}
+                onSuggest={() => void tagSuggestion.suggest()}
+              />
+            )}
+            {categoryAiConfigured && categories.length > 0 && (
+              <AiSuggestTrigger
+                label="Category"
+                aiConfigured
+                loading={categorySuggestion.state === "loading"}
+                disabled={!categorySuggestion.isOnline}
+                onSuggest={() => void categorySuggestion.suggest()}
+              />
+            )}
+            {timeAiConfigured && (
+              <AiSuggestTrigger
+                label="Time"
+                aiConfigured
+                loading={timeSuggestion.state === "loading"}
+                disabled={!timeSuggestion.isOnline}
+                onSuggest={() => void timeSuggestion.suggest()}
+              />
+            )}
+            {plannedAiConfigured && (
+              <AiSuggestTrigger
+                label="Planned"
+                aiConfigured
+                loading={plannedSuggestion.state === "loading"}
+                disabled={!plannedSuggestion.isOnline}
+                onSuggest={() => void plannedSuggestion.suggest()}
+              />
+            )}
+          </div>
+          <AiSuggestionFeedback
+            featureName="Tag suggestions"
+            state={tagSuggestion.state}
+            error={tagSuggestion.error}
+            isOnline={tagSuggestion.isOnline}
+            onAccept={tagSuggestion.accept}
+            onReject={tagSuggestion.reject}
+            preview={
+              tagSuggestion.suggestion ? (
+                <div className="space-y-2">
+                  {tagSuggestion.suggestion.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {tagSuggestion.suggestion.tags.map((name) => {
+                        const tag = tags.find((t) => t.name === name);
+                        return (
+                          <TagChip
+                            key={name}
+                            name={name}
+                            colorHex={tag?.colorHex}
+                            selected
+                          />
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No tags suggested</p>
+                  )}
+                  {tagSuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {tagSuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
+          <AiSuggestionFeedback
+            featureName="Task categorization"
+            state={categorySuggestion.state}
+            error={categorySuggestion.error}
+            isOnline={categorySuggestion.isOnline}
+            onAccept={categorySuggestion.accept}
+            onReject={categorySuggestion.reject}
+            preview={
+              categorySuggestion.suggestion ? (
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">
+                    {categorySuggestion.suggestion.category ?? "None"}
+                  </p>
+                  {categorySuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {categorySuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
+          <AiSuggestionFeedback
+            featureName="Time estimates"
+            state={timeSuggestion.state}
+            error={timeSuggestion.error}
+            isOnline={timeSuggestion.isOnline}
+            onAccept={timeSuggestion.accept}
+            onReject={timeSuggestion.reject}
+            preview={
+              timeSuggestion.suggestion ? (
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">
+                    {timeSuggestion.suggestion.durationMinutes} minutes
+                  </p>
+                  {timeSuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {timeSuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
+          <AiSuggestionFeedback
+            featureName="Planned task suggestions"
+            state={plannedSuggestion.state}
+            error={plannedSuggestion.error}
+            isOnline={plannedSuggestion.isOnline}
+            onAccept={plannedSuggestion.accept}
+            onReject={plannedSuggestion.reject}
+            preview={
+              plannedSuggestion.suggestion ? (
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">
+                    {plannedSuggestion.suggestion.isPlanned
+                      ? "Planned work"
+                      : "Flow win (unplanned)"}
+                  </p>
+                  {plannedSuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {plannedSuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
         </div>
       )}
 

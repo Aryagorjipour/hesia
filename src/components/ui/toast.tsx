@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2, Info, X, AlertTriangle } from "lucide-react";
 import { useToastStore, type Toast, type ToastVariant } from "@/stores/toast-store";
+import { usePrefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils/cn";
 
 const VARIANT_STYLES: Record<
@@ -39,6 +40,7 @@ const VARIANT_STYLES: Record<
 
 function ToastItem({ toast }: { toast: Toast }) {
   const dismiss = useToastStore((s) => s.dismiss);
+  const reducedMotion = usePrefersReducedMotion();
   const { icon: Icon, className, iconClassName } = VARIANT_STYLES[toast.variant];
 
   useEffect(() => {
@@ -48,11 +50,11 @@ function ToastItem({ toast }: { toast: Toast }) {
 
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 16, scale: 0.96 }}
+      layout={!reducedMotion}
+      initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-      transition={{ duration: 0.2 }}
+      exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.98 }}
+      transition={{ duration: reducedMotion ? 0.01 : 0.22, ease: [0.22, 1, 0.36, 1] }}
       role="status"
       aria-live="polite"
       className={cn(
@@ -72,7 +74,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <button
         type="button"
         onClick={() => dismiss(toast.id)}
-        className="shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        className="touch-target shrink-0 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />

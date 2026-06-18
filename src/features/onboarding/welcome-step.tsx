@@ -10,7 +10,8 @@ import {
 } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { HesiaStarMark } from "./hesia-star-mark";
+import { HesiaLogo } from "@/components/brand/hesia-logo";
+import { prefersReducedMotion } from "@/lib/hooks/use-prefers-reduced-motion";
 
 const RIVER_EASE = [0.22, 1, 0.36, 1] as const;
 const TRAVEL_MS = 1550;
@@ -23,13 +24,6 @@ interface WelcomeStepProps {
   onSkip: () => void;
   introDone?: boolean;
   onIntroComplete?: () => void;
-}
-
-function prefersReducedMotion() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
 }
 
 export function WelcomeStep({
@@ -119,9 +113,9 @@ export function WelcomeStep({
           times: [0, 0.55, 1],
           ease: RIVER_EASE,
         }),
-        animate(flyRotate, [0, 220, 540], {
+        animate(flyRotate, [-8, 4, 0], {
           duration: TRAVEL_MS / 1000,
-          times: [0, 0.4, 1],
+          times: [0, 0.45, 1],
           ease: RIVER_EASE,
         }),
         animate(flyX, [startX, midX, endX], {
@@ -188,7 +182,7 @@ export function WelcomeStep({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: RIVER_EASE }}
         >
-          <HesiaStarMark glow />
+          <HesiaLogo size={72} animated={false} priority />
         </motion.div>
       )}
 
@@ -207,7 +201,7 @@ export function WelcomeStep({
             className="absolute inset-0 -m-8 rounded-full bg-accent/25 blur-2xl"
             style={{ opacity: trailOpacity }}
           />
-          <HesiaStarMark glow />
+          <HesiaLogo size={72} animated={false} priority />
         </motion.div>
       )}
 
@@ -222,7 +216,7 @@ export function WelcomeStep({
                 ref={slotRef}
                 className="mx-auto mb-4 flex h-16 w-16 items-center justify-center"
               >
-                <HesiaStarMark />
+                <HesiaLogo size={64} animated={false} />
               </div>
               <CardTitle className="text-2xl">Welcome to Hesia</CardTitle>
               <CardDescription className="mt-2 text-base leading-relaxed">
@@ -250,30 +244,31 @@ export function WelcomeStep({
         >
           <Card className="relative z-10 rounded-3xl">
             <CardHeader className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
-                <motion.div
-                  initial={false}
-                  animate={{
-                    opacity: showSlotStar ? 1 : 0,
-                    scale: showSlotStar ? 1 : 0.8,
-                  }}
-                  transition={{ duration: 0.32, ease: RIVER_EASE }}
-                >
-                  <HesiaStarMark glow={activePhase === "docked"} />
-                </motion.div>
-              </div>
+              <motion.div
+                initial={false}
+                animate={{
+                  opacity: showSlotStar ? 1 : 0,
+                  scale: showSlotStar ? 1 : 0.92,
+                }}
+                transition={{ duration: 0.32, ease: RIVER_EASE }}
+                className="mx-auto mb-4 flex justify-center"
+              >
+                {showCard ? (
+                  <HesiaLogo variant="horizontal" animated={false} priority />
+                ) : (
+                  <HesiaLogo size={64} animated={false} priority />
+                )}
+              </motion.div>
 
               <motion.div
                 initial={false}
                 animate={{
                   opacity: showCard ? 1 : 0,
-                  y: showCard ? 0 : 20,
-                  filter: showCard ? "blur(0px)" : "blur(8px)",
+                  y: showCard ? 0 : 16,
                 }}
-                transition={{ duration: 0.72, ease: RIVER_EASE }}
+                transition={{ duration: 0.55, ease: RIVER_EASE }}
               >
-                <CardTitle className="text-2xl">Welcome to Hesia</CardTitle>
-                <CardDescription className="mt-2 text-base leading-relaxed">
+                <CardDescription className="text-base leading-relaxed">
                   Track what matters. Reflect without judgment. AI that truly knows
                   you — locally.
                 </CardDescription>

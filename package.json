@@ -19,8 +19,11 @@
     "build:pages": "node scripts/build-pages.mjs",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --test scripts/offline-routes.test.mjs",
     "icons": "node scripts/generate-icons.mjs",
-    "pwa:dev": "set SERWIST_DEV=1&& set NEXT_PUBLIC_SERWIST_DEV=1&& npm run build && npm run start"
+    "pwa:dev": "set SERWIST_DEV=1&& set NEXT_PUBLIC_SERWIST_DEV=1&& npm run build && npm run start",
+    "relay": "cd relay && bun run start",
+    "relay:dev": "cd relay && bun run dev"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -42,6 +45,7 @@
     "dexie": "^4.4.3",
     "dexie-react-hooks": "^4.4.0",
     "framer-motion": "^12.40.0",
+    "jalaali-js": "^1.2.8",
     "jszip": "^3.10.1",
     "lucide-react": "^1.18.0",
     "next": "16.2.9",

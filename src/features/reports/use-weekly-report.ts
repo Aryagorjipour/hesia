@@ -10,6 +10,8 @@ import {
   deleteWeeklyReport,
 } from "@/lib/db/mutations/reports";
 import { generateWeeklyReportNarrative } from "@/lib/ai/generate-weekly-report";
+import { resolveProfileForFeature } from "@/lib/ai/feature-router";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
 import { toast } from "@/lib/toast";
 import type { WeekLocalStats, WeeklyReport } from "@/types/report";
 
@@ -18,7 +20,7 @@ export function useWeeklyReport(
   stats: WeekLocalStats | null,
 ) {
   const settings = useLiveQuery(() => db.settings.get("default"));
-  const aiConfig = settings?.aiConfig;
+  const reflectionProfile = resolveProfileForFeature(settings, "reflection");
 
   const savedReport = useLiveQuery(
     () => getReportForWeek(weekStart),
@@ -29,7 +31,7 @@ export function useWeeklyReport(
   const [streamText, setStreamText] = useState("");
 
   const generate = useCallback(async () => {
-    if (!aiConfig || !stats || generating) return;
+    if (!reflectionProfile || !stats || generating) return;
 
     setGenerating(true);
     setStreamText("");
@@ -37,7 +39,7 @@ export function useWeeklyReport(
     try {
       await new Promise<void>((resolve) => {
         void generateWeeklyReportNarrative(
-          aiConfig,
+          settings,
           weekStart,
           stats,
           {
@@ -48,7 +50,7 @@ export function useWeeklyReport(
                   weekStart,
                   localStats: stats,
                   aiNarrative: fullText,
-                  providerSnapshot: `${aiConfig.providerPreset} / ${aiConfig.model}`,
+                  providerSnapshot: `${reflectionProfile.providerPreset} / ${reflectionProfile.model}`,
                 });
                 toast.success({
                   title: "Reflection saved",
@@ -77,7 +79,7 @@ export function useWeeklyReport(
       setGenerating(false);
       setStreamText("");
     }
-  }, [aiConfig, stats, weekStart, generating]);
+  }, [settings, reflectionProfile, stats, weekStart, generating]);
 
   const saveNotes = useCallback(
     async (reportId: string, notes: string) => {
@@ -119,7 +121,7 @@ export function useWeeklyReport(
     report: displayReport,
     generating,
     streamText,
-    aiConfigured: !!aiConfig?.baseUrl && !!aiConfig?.model,
+    aiConfigured: isAiConfiguredForFeature(settings, "reflection"),
     generate,
     saveNotes,
     remove,

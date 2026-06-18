@@ -259,7 +259,7 @@ export function BoardView() {
       {canQuickLog && !isEmpty && (
         <Button
           size="icon"
-          className="fixed bottom-24 right-4 z-40 h-14 w-14 rounded-full shadow-lg sm:right-6 lg:bottom-8"
+          className="fixed bottom-24 end-4 z-40 h-14 w-14 rounded-full shadow-lg sm:end-6 lg:bottom-8"
           onClick={() => openQuickCapture("inbox", selectedBoardDate)}
           aria-label="Quick log"
         >

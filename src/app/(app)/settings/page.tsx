@@ -10,6 +10,7 @@ import {
   Info,
   Smartphone,
   User,
+  Cable,
 } from "lucide-react";
 import { MobilePageHeader } from "@/components/layout/mobile-page-header";
 import { SettingsScrollArea } from "@/components/settings/settings-scroll-area";
@@ -41,6 +42,12 @@ const SETTINGS_LINKS = [
     label: "AI Configuration",
     description: "Provider, model, and API key",
     icon: Bot,
+  },
+  {
+    href: "/settings/integrations",
+    label: "Integrations",
+    description: "Relay, email, MCP, and locale",
+    icon: Cable,
   },
   {
     href: "/settings/app",

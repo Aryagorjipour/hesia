@@ -1,6 +1,40 @@
 @import "tailwindcss";
 
+/* Self-hosted Vazirmatn for Persian / RTL */
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/vazirmatn/vazirmatn-arabic-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/vazirmatn/vazirmatn-arabic-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/vazirmatn/vazirmatn-arabic-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Vazirmatn";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/vazirmatn/vazirmatn-arabic-700-normal.woff2") format("woff2");
+}
+
 :root {
+  --font-vazirmatn: "Vazirmatn", system-ui, sans-serif;
   --background: #2d3a36;
   --background-gradient: linear-gradient(
     165deg,
@@ -59,6 +93,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[dir="rtl"] body,
+html[lang="fa"] body {
+  font-family: var(--font-vazirmatn);
+}
+
 /* Safe area utilities for mobile PWA */
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
@@ -74,8 +113,21 @@ body {
 }
 
 .px-safe {
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+}
+
+.ps-safe {
+  padding-inline-start: env(safe-area-inset-left, 0px);
+}
+
+.pe-safe {
+  padding-inline-end: env(safe-area-inset-right, 0px);
+}
+
+/* Minimum touch target for mobile interactive elements */
+.touch-target {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
 }
 
 .min-h-dvh-safe {
@@ -99,4 +151,18 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

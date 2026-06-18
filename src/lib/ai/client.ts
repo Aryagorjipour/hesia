@@ -1,14 +1,24 @@
-import type { AiConfig } from "@/types/settings";
+import type { AiProviderProfile } from "@/types/ai-provider";
 import { decryptApiKey } from "@/lib/crypto/key-vault";
+
+export type AiEndpointConfig = AiProviderProfile;
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
+export interface StreamCompletionExtras {
+  toolCalls: {
+    id: string;
+    name: string;
+    arguments: string;
+  }[];
+}
+
 export interface StreamCallbacks {
   onToken: (token: string) => void;
-  onDone: (fullText: string) => void;
+  onDone: (fullText: string, extras?: StreamCompletionExtras) => void;
   onError: (error: Error) => void;
 }
 
@@ -17,7 +27,9 @@ export interface AiCallOptions {
   jsonMode?: boolean;
 }
 
-export async function resolveApiKey(config: AiConfig): Promise<string | undefined> {
+export async function resolveApiKey(
+  config: AiEndpointConfig,
+): Promise<string | undefined> {
   if (!config.encryptedApiKey) return undefined;
   try {
     return await decryptApiKey(config.encryptedApiKey);
@@ -27,7 +39,7 @@ export async function resolveApiKey(config: AiConfig): Promise<string | undefine
 }
 
 export async function streamChatCompletion(
-  config: AiConfig,
+  config: AiEndpointConfig,
   options: AiCallOptions,
   callbacks: StreamCallbacks,
   apiKeyOverride?: string,
@@ -114,7 +126,7 @@ export async function streamChatCompletion(
 }
 
 export async function testConnection(
-  config: AiConfig,
+  config: AiEndpointConfig,
   apiKey?: string,
 ): Promise<{ ok: boolean; message: string; sample?: string }> {
   return new Promise((resolve) => {

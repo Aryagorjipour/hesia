@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { FolderOpen, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { Check, FolderOpen, Loader2, Pencil, Plus, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { db } from "@/lib/db/schema";
+import { suggestTags } from "@/lib/ai/suggest-tags";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
+import { updateTask } from "@/lib/db/mutations/tasks";
+import { COLUMN_LABELS } from "@/types/task";
+import type { TagSuggestion } from "@/types/ai-suggestions";
+import { useOnlineStatus } from "@/lib/hooks/use-online-status";
+import { AiNotConfiguredHint } from "@/features/board/ai-suggestions-panel";
 import {
   createTag,
   updateTag,
@@ -32,9 +39,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface BulkTagSuggestion {
+  taskId: string;
+  taskTitle: string;
+  suggestion: TagSuggestion;
+  selected: boolean;
+}
+
 export function TagsCategoriesView() {
   const tags = useLiveQuery(() => db.tags.toArray()) ?? [];
   const categories = useLiveQuery(() => db.categories.toArray()) ?? [];
+  const allTasks = useLiveQuery(() => db.tasks.toArray());
+  const settings = useLiveQuery(() => db.settings.get("default"));
+  const tagAiConfigured = isAiConfiguredForFeature(settings, "tagging");
+  const isOnline = useOnlineStatus();
+
+  const untaggedTasks = useMemo(() => {
+    const tasks = allTasks ?? [];
+    return tasks
+      .filter((t) => t.status !== "archived" && t.tags.length === 0)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt ?? b.createdAt).getTime() -
+          new Date(a.updatedAt ?? a.createdAt).getTime(),
+      )
+      .slice(0, 40);
+  }, [allTasks]);
 
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState("#6366f1");
@@ -50,6 +80,113 @@ export function TagsCategoriesView() {
   const [editCatColor, setEditCatColor] = useState("#10b981");
 
   const [busy, setBusy] = useState(false);
+
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [bulkSuggesting, setBulkSuggesting] = useState(false);
+  const [bulkSuggestions, setBulkSuggestions] = useState<BulkTagSuggestion[]>(
+    [],
+  );
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkApplying, setBulkApplying] = useState(false);
+
+  function toggleTaskSelection(taskId: string) {
+    setSelectedTaskIds((prev) =>
+      prev.includes(taskId)
+        ? prev.filter((id) => id !== taskId)
+        : [...prev, taskId],
+    );
+  }
+
+  function toggleBulkSuggestion(taskId: string) {
+    setBulkSuggestions((prev) =>
+      prev.map((item) =>
+        item.taskId === taskId ? { ...item, selected: !item.selected } : item,
+      ),
+    );
+  }
+
+  async function handleBulkSuggestTags() {
+    if (!tagAiConfigured || selectedTaskIds.length === 0) return;
+    if (!isOnline) {
+      toast.warning({
+        title: "You're offline",
+        description: "AI needs an internet connection.",
+      });
+      return;
+    }
+
+    const tagNames = tags.map((t) => t.name);
+    if (tagNames.length === 0) {
+      toast.warning({
+        title: "No tags available",
+        description: "Create tags first, then suggest assignments.",
+      });
+      return;
+    }
+
+    setBulkSuggesting(true);
+    try {
+      const selectedTasks = untaggedTasks.filter((t) =>
+        selectedTaskIds.includes(t.id),
+      );
+      const results: BulkTagSuggestion[] = [];
+
+      for (const task of selectedTasks) {
+        const suggestion = await suggestTags(settings, {
+          title: task.title,
+          description: task.description,
+          notes: task.notes,
+          status: COLUMN_LABELS[task.status],
+          isPlanned: task.isPlanned,
+          currentTags: [],
+          availableTags: tagNames,
+        });
+        results.push({
+          taskId: task.id,
+          taskTitle: task.title,
+          suggestion,
+          selected: suggestion.tags.length > 0,
+        });
+      }
+
+      setBulkSuggestions(results);
+      setBulkDialogOpen(true);
+    } catch (e) {
+      toast.error({
+        title: "Bulk tag suggest failed",
+        description: e instanceof Error ? e.message : "Something went wrong",
+      });
+    } finally {
+      setBulkSuggesting(false);
+    }
+  }
+
+  async function handleApplyBulkSuggestions() {
+    const toApply = bulkSuggestions.filter((item) => item.selected);
+    if (toApply.length === 0) return;
+
+    setBulkApplying(true);
+    try {
+      for (const item of toApply) {
+        if (item.suggestion.tags.length === 0) continue;
+        await updateTask(item.taskId, { tags: item.suggestion.tags });
+      }
+      toast.success({
+        title: "Tags applied",
+        description: `Updated ${toApply.length} task${toApply.length === 1 ? "" : "s"}.`,
+      });
+      setBulkDialogOpen(false);
+      setBulkSuggestions([]);
+      setSelectedTaskIds([]);
+    } catch (e) {
+      toast.error({
+        title: "Could not apply tags",
+        description: e instanceof Error ? e.message : "Failed to update tasks",
+      });
+    } finally {
+      setBulkApplying(false);
+    }
+  }
 
   async function handleAddTag() {
     const name = newTagName.trim();
@@ -278,6 +415,63 @@ export function TagsCategoriesView() {
             </div>
           </div>
 
+          {tagAiConfigured && tags.length > 0 && untaggedTasks.length > 0 && (
+            <div className="rounded-2xl border border-accent/25 bg-accent/5 p-4">
+              <div className="mb-3 flex items-start gap-2">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Bulk tag suggestions
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Select untagged tasks — AI suggests tags for review before
+                    applying.
+                  </p>
+                </div>
+              </div>
+              <ul className="mb-3 max-h-48 space-y-1.5 overflow-y-auto">
+                {untaggedTasks.map((task) => (
+                  <li key={task.id}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-sm hover:bg-muted/30">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border accent-[var(--accent)]"
+                        checked={selectedTaskIds.includes(task.id)}
+                        onChange={() => toggleTaskSelection(task.id)}
+                        disabled={bulkSuggesting}
+                      />
+                      <span className="min-w-0 truncate">{task.title}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => void handleBulkSuggestTags()}
+                disabled={
+                  bulkSuggesting ||
+                  selectedTaskIds.length === 0 ||
+                  !isOnline
+                }
+              >
+                {bulkSuggesting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {bulkSuggesting
+                  ? "Suggesting…"
+                  : `Suggest tags (${selectedTaskIds.length})`}
+              </Button>
+            </div>
+          )}
+
+          {!tagAiConfigured && untaggedTasks.length > 0 && (
+            <AiNotConfiguredHint featureName="Tag suggestions" />
+          )}
+
           {tags.length === 0 ? (
             <EmptyState
               icon={Tag}
@@ -433,6 +627,100 @@ export function TagsCategoriesView() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={bulkDialogOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setBulkDialogOpen(false);
+            setBulkSuggestions([]);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review tag suggestions</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Uncheck any task you don&apos;t want updated. Nothing is saved until
+            you apply.
+          </p>
+          <ul className="space-y-3">
+            {bulkSuggestions.map((item) => (
+              <li
+                key={item.taskId}
+                className="rounded-2xl border border-border/50 bg-card/30 p-3"
+              >
+                <label className="flex cursor-pointer items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 rounded border-border accent-[var(--accent)]"
+                    checked={item.selected}
+                    onChange={() => toggleBulkSuggestion(item.taskId)}
+                    disabled={bulkApplying || item.suggestion.tags.length === 0}
+                  />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="truncate text-sm font-medium">
+                      {item.taskTitle}
+                    </p>
+                    {item.suggestion.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {item.suggestion.tags.map((name) => {
+                          const tag = tags.find((t) => t.name === name);
+                          return (
+                            <TagChip
+                              key={name}
+                              name={name}
+                              colorHex={tag?.colorHex}
+                              selected
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        No tags suggested
+                      </p>
+                    )}
+                    {item.suggestion.reasoning && (
+                      <p className="text-xs text-muted-foreground">
+                        {item.suggestion.reasoning}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1 gap-1.5"
+              onClick={() => {
+                setBulkDialogOpen(false);
+                setBulkSuggestions([]);
+              }}
+              disabled={bulkApplying}
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="flex-1 gap-1.5"
+              onClick={() => void handleApplyBulkSuggestions()}
+              disabled={
+                bulkApplying ||
+                bulkSuggestions.filter((item) => item.selected).length === 0
+              }
+            >
+              <Check className="h-3.5 w-3.5" />
+              {bulkApplying ? "Applying…" : "Apply selected"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={editTag !== null}

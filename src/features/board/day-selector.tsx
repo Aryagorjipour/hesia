@@ -62,7 +62,7 @@ export function DaySelector({
           type="button"
           onClick={() => shift(-1)}
           disabled={selectedIndex <= 0}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-30"
+          className="touch-target flex shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-30 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-0"
           aria-label="Earlier day"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -86,8 +86,8 @@ export function DaySelector({
                 className={cn(
                   "shrink-0 snap-start rounded-xl transition-colors",
                   selected
-                    ? "bg-accent/15 px-2.5 py-1.5 text-accent ring-1 ring-accent/30 sm:px-3 sm:py-2"
-                    : "px-2 py-1 text-muted-foreground hover:bg-muted/35 sm:px-2.5 sm:py-1.5",
+                    ? "min-h-11 bg-accent/15 px-2.5 py-2 text-accent ring-1 ring-accent/30 sm:min-h-0 sm:px-3 sm:py-2"
+                    : "min-h-11 px-2.5 py-2 text-muted-foreground hover:bg-muted/35 sm:min-h-0 sm:px-2.5 sm:py-1.5",
                 )}
               >
                 <span
@@ -115,7 +115,7 @@ export function DaySelector({
           type="button"
           onClick={() => shift(1)}
           disabled={selectedIndex >= days.length - 1}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-30"
+          className="touch-target flex shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-30 sm:h-8 sm:w-8 sm:min-h-0 sm:min-w-0"
           aria-label="Later day"
         >
           <ChevronRight className="h-4 w-4" />
@@ -134,7 +134,7 @@ export function DaySelector({
           <button
             type="button"
             onClick={() => onSelect(today)}
-            className="rounded-lg bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent"
+            className="touch-target rounded-lg bg-accent/10 px-2.5 py-1 text-[10px] font-medium text-accent"
           >
             Today
           </button>

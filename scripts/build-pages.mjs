@@ -27,3 +27,4 @@ function run(command, args) {
 
 run("node", ["scripts/generate-icons.mjs"]);
 run("npx", ["next", "build", "--webpack"]);
+run("node", ["scripts/inject-precache-shells.mjs"]);

@@ -10,6 +10,8 @@ import {
 import { normalizeWeekStartsOn } from "@/lib/utils/week-config";
 import type { Task } from "@/types/task";
 import type { ChatMessage as AiChatMessage } from "./client";
+import { resolveProfileForFeature } from "./feature-router";
+import { buildMcpContext } from "@/lib/mcp/mcp-context";
 
 export interface ContextBuildOptions {
   userMessage: string;
@@ -130,6 +132,8 @@ export async function buildContext(
         .join("\n\n")
     : "(No past reports)";
 
+  const mcpSection = await buildMcpContext(settings);
+
   const contextBlock = `## User Profile
 ${profileSection}
 
@@ -149,11 +153,12 @@ ${reportsSection}
 ${sessionSummary || "(No prior summary — fresh thread)"}
 
 ## Conversation so far (recent turns)
-${chatMessages.map((m) => `${m.role}: ${m.content}`).join("\n") || "(New conversation)"}`;
+${chatMessages.map((m) => `${m.role}: ${m.content}`).join("\n") || "(New conversation)"}${mcpSection ? `\n\n${mcpSection}` : ""}`;
 
+  const chatProfile = resolveProfileForFeature(settings, "chat");
   const systemPrompt =
     options.customSystemPrompt?.trim() ||
-    settings?.aiConfig?.customSystemPrompt?.trim() ||
+    chatProfile?.customSystemPrompt?.trim() ||
     HESIA_SYSTEM_PROMPT_V1;
 
   const history = chatMessages

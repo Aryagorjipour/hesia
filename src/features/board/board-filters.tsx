@@ -177,13 +177,13 @@ export function BoardFilters({ searchInputRef }: BoardFiltersProps) {
     <div className="space-y-2 border-b border-border px-3 py-2 sm:px-4 sm:py-3 lg:px-6">
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="relative min-w-0 flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={searchInputRef}
             placeholder="Search tasks..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="ps-10"
           />
         </div>
 
@@ -196,7 +196,7 @@ export function BoardFilters({ searchInputRef }: BoardFiltersProps) {
         >
           <SlidersHorizontal className="h-4 w-4" />
           {activeFilters && (
-            <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className="absolute end-2 top-2 h-1.5 w-1.5 rounded-full bg-accent" />
           )}
         </Button>
 

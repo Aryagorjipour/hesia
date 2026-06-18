@@ -1,9 +1,9 @@
-import { streamChatCompletion } from "@/lib/ai/client";
+import { streamFeatureCompletion } from "@/lib/ai/ai-service";
 import {
   AiTaskDraftSchema,
   type AiTaskDraft,
 } from "@/lib/ai/structured-output";
-import type { AiConfig } from "@/types/settings";
+import type { AppSettings } from "@/types/settings";
 import type { TaskStatus } from "@/types/task";
 import { COLUMN_LABELS } from "@/types/task";
 
@@ -36,11 +36,9 @@ Rules:
 
 export async function generateTaskFromQuickLog(
   userText: string,
-  aiConfig: AiConfig,
+  settings: AppSettings | undefined,
   context: QuickLogTaskContext,
 ): Promise<AiTaskDraft> {
-  const compactConfig = { ...aiConfig, streaming: false };
-
   const userPrompt = `Board day: ${context.boardDate}
 Allowed columns: ${context.allowedStatuses.map((s) => COLUMN_LABELS[s]).join(", ")}
 Existing tags: ${context.tagNames.join(", ") || "(none)"}
@@ -50,8 +48,8 @@ User said:
 ${userText.trim()}`;
 
   const raw = await new Promise<string>((resolve, reject) => {
-    void streamChatCompletion(
-      compactConfig,
+    void streamFeatureCompletion(
+      { settings, feature: "quick-log" },
       {
         messages: [
           { role: "system", content: QUICK_LOG_SYSTEM },

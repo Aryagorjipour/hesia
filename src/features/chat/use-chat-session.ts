@@ -11,15 +11,37 @@ import {
   deleteChatSession,
   maybeUpdateSessionTitleFromMessage,
 } from "@/lib/db/mutations/chat";
-import { streamChatCompletion } from "@/lib/ai/client";
+import {
+  profileSupportsToolCalls,
+  streamFeatureCompletion,
+} from "@/lib/ai/ai-service";
+import { HESIA_ACTION_TOOLS } from "@/lib/ai/action-schema";
+import { parseActionsFromToolCalls } from "@/lib/ai/tool-call-parser";
+import {
+  parseHesiaActionBlocks,
+  stripHesiaActionBlocks,
+} from "@/lib/ai/json-action-fallback";
 import { buildContext } from "@/lib/ai/context-builder";
 import { compactSessionContext } from "@/lib/ai/context-compactor";
-import { isAiConfigured } from "@/lib/ai/is-ai-configured";
+import { resolveProfileForFeature } from "@/lib/ai/feature-router";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
 import { persistMemoryUpdates } from "@/lib/ai/memory-parser";
 import { useChatStore } from "@/stores/chat-store";
 import { toast } from "@/lib/toast";
 import { toISO } from "@/lib/utils/dates";
 import type { ChatMessage } from "@/types/chat";
+import type { HesiaAction } from "@/types/ai-actions";
+
+function resolveAssistantActions(
+  content: string,
+  toolCalls: { id: string; name: string; arguments: string }[] | undefined,
+): HesiaAction[] {
+  const fromTools = toolCalls?.length
+    ? parseActionsFromToolCalls(toolCalls)
+    : [];
+  if (fromTools.length > 0) return fromTools;
+  return parseHesiaActionBlocks(content);
+}
 
 export function useChatSession() {
   const activeSessionId = useChatStore((s) => s.activeSessionId);
@@ -28,10 +50,13 @@ export function useChatSession() {
   const [ready, setReady] = useState(false);
   const [streaming, setStreaming] = useState(false);
   const [streamText, setStreamText] = useState("");
+  const [streamActions, setStreamActions] = useState<HesiaAction[]>([]);
   const abortRef = useRef(false);
 
   const settings = useLiveQuery(() => db.settings.get("default"));
-  const aiConfig = settings?.aiConfig;
+  const chatProfile = resolveProfileForFeature(settings, "chat");
+  const useToolCalls =
+    !!chatProfile && profileSupportsToolCalls(chatProfile);
 
   const sessions =
     useLiveQuery(() =>
@@ -66,7 +91,7 @@ export function useChatSession() {
 
   const sendMessage = useCallback(
     async (userText: string) => {
-      if (!sessionId || !aiConfig || streaming) return;
+      if (!sessionId || !chatProfile || streaming) return;
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         toast.warning({
           title: "You're offline",
@@ -77,6 +102,7 @@ export function useChatSession() {
 
       setStreaming(true);
       setStreamText("");
+      setStreamActions([]);
       abortRef.current = false;
 
       try {
@@ -86,33 +112,52 @@ export function useChatSession() {
         const { messages: aiMessages } = await buildContext({
           userMessage: userText,
           sessionId,
-          maxContextWeeks: aiConfig.maxContextWeeks,
+          maxContextWeeks: chatProfile.maxContextWeeks,
         });
 
         let fullText = "";
 
         await new Promise<void>((resolve) => {
-          void streamChatCompletion(
-            aiConfig,
-            { messages: aiMessages },
+          void streamFeatureCompletion(
+            { settings, feature: "chat" },
+            {
+              messages: aiMessages,
+              ...(useToolCalls
+                ? { tools: HESIA_ACTION_TOOLS, toolChoice: "auto" as const }
+                : {}),
+            },
             {
               onToken: (token) => {
                 if (abortRef.current) return;
                 fullText += token;
                 setStreamText(fullText);
               },
-              onDone: async (text) => {
+              onDone: async (text, extras) => {
                 if (abortRef.current) {
                   resolve();
                   return;
                 }
                 fullText = text;
+                const actions = resolveAssistantActions(
+                  fullText,
+                  extras?.toolCalls,
+                );
+                setStreamActions(actions);
+
+                const displayContent = stripHesiaActionBlocks(fullText);
+
                 try {
                   await persistMemoryUpdates(fullText);
-                  await addChatMessage(sessionId, "assistant", fullText, {
-                    model: aiConfig.model,
-                  });
-                  void compactSessionContext(sessionId, aiConfig).catch(() => {
+                  await addChatMessage(
+                    sessionId,
+                    "assistant",
+                    displayContent || (actions.length > 0 ? "" : fullText),
+                    {
+                      model: chatProfile.model,
+                      ...(actions.length > 0 ? { actions } : {}),
+                    },
+                  );
+                  void compactSessionContext(sessionId, settings).catch(() => {
                     // compaction is best-effort
                   });
                 } catch (err) {
@@ -145,15 +190,17 @@ export function useChatSession() {
       } finally {
         setStreaming(false);
         setStreamText("");
+        setStreamActions([]);
       }
     },
-    [sessionId, aiConfig, streaming],
+    [sessionId, settings, chatProfile, streaming, useToolCalls],
   );
 
   const stopStreaming = useCallback(() => {
     abortRef.current = true;
     setStreaming(false);
     setStreamText("");
+    setStreamActions([]);
   }, []);
 
   const clearChat = useCallback(async () => {
@@ -208,23 +255,18 @@ export function useChatSession() {
   );
 
   const streamingMessage: ChatMessage | null =
-    streaming && streamText
+    streaming
       ? {
           id: "streaming",
           sessionId: sessionId ?? "",
           role: "assistant",
           content: streamText,
           createdAt: toISO(new Date()),
+          ...(streamActions.length > 0
+            ? { metadata: { actions: streamActions } }
+            : {}),
         }
-      : streaming
-        ? {
-            id: "streaming",
-            sessionId: sessionId ?? "",
-            role: "assistant",
-            content: "",
-            createdAt: toISO(new Date()),
-          }
-        : null;
+      : null;
 
   return {
     sessionId,
@@ -233,8 +275,8 @@ export function useChatSession() {
     messages,
     streamingMessage,
     streaming,
-    aiConfigured: isAiConfigured(aiConfig),
-    aiConfig,
+    aiConfigured: isAiConfiguredForFeature(settings, "chat"),
+    chatProfile,
     sendMessage,
     stopStreaming,
     clearChat,

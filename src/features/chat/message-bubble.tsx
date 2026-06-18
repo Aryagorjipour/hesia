@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sparkles, User } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { ChatMessage } from "@/types/chat";
@@ -8,8 +9,13 @@ import {
   parseTaskDraftBlocks,
   stripTaskDraftBlocks,
 } from "@/lib/ai/task-draft-parser";
+import {
+  resolveActionsFromContent,
+  stripHesiaActionBlocks,
+} from "@/lib/ai/json-action-fallback";
 import { MarkdownContent } from "./markdown-content";
 import { TaskDraftCard } from "./task-draft-card";
+import { ActionPreviewCard } from "./action-preview-card";
 import { cn } from "@/lib/utils/cn";
 
 interface MessageBubbleProps {
@@ -27,8 +33,18 @@ export function MessageBubble({
   const raw = message.content;
   const displayContent = isUser
     ? raw
-    : stripTaskDraftBlocks(stripMemoryBlocks(raw));
+    : stripHesiaActionBlocks(
+        stripTaskDraftBlocks(stripMemoryBlocks(raw)),
+      );
   const taskDrafts = isUser ? [] : parseTaskDraftBlocks(raw);
+  const actions = isUser
+    ? []
+    : resolveActionsFromContent(raw, message.metadata?.actions);
+  const [dismissedActions, setDismissedActions] = useState<Set<number>>(
+    () => new Set(),
+  );
+
+  const visibleActions = actions.filter((_, index) => !dismissedActions.has(index));
 
   return (
     <div
@@ -71,8 +87,26 @@ export function MessageBubble({
               {displayContent}
             </p>
           ) : (
-            <MarkdownContent content={displayContent || (isStreaming ? "…" : "")} />
+            <MarkdownContent
+              content={
+                displayContent ||
+                (isStreaming
+                  ? "…"
+                  : visibleActions.length > 0 || taskDrafts.length > 0
+                    ? ""
+                    : "")
+              }
+            />
           )}
+          {visibleActions.map((action, i) => (
+            <ActionPreviewCard
+              key={`${action.type}-${i}`}
+              action={action}
+              onDismiss={() =>
+                setDismissedActions((prev) => new Set(prev).add(i))
+              }
+            />
+          ))}
           {taskDrafts.map((draft, i) => (
             <TaskDraftCard key={`${draft.title}-${i}`} draft={draft} />
           ))}

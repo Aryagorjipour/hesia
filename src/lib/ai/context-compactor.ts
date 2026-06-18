@@ -1,7 +1,7 @@
 import { db } from "@/lib/db/schema";
-import { streamChatCompletion } from "@/lib/ai/client";
+import { streamFeatureCompletion } from "@/lib/ai/ai-service";
 import { updateChatSession } from "@/lib/db/mutations/chat";
-import type { AiConfig } from "@/types/settings";
+import type { AppSettings } from "@/types/settings";
 import type { ChatMessage } from "@/types/chat";
 
 const COMPACT_WHEN_MESSAGES = 28;
@@ -19,19 +19,17 @@ function formatMessagesForSummary(messages: ChatMessage[]): string {
 }
 
 async function summarizeMessages(
-  aiConfig: AiConfig,
+  settings: AppSettings | undefined,
   existingSummary: string | undefined,
   messages: ChatMessage[],
 ): Promise<string> {
-  const compactConfig = { ...aiConfig, streaming: false };
-
   const prompt = `Summarize this conversation into concise bullet points. Preserve key facts, decisions, tasks discussed, and user preferences. Max 500 words.
 
 ${existingSummary ? `Previous summary:\n${existingSummary}\n\n` : ""}New messages to fold in:\n${formatMessagesForSummary(messages)}`;
 
   return new Promise((resolve, reject) => {
-    void streamChatCompletion(
-      compactConfig,
+    void streamFeatureCompletion(
+      { settings, feature: "chat" },
       {
         messages: [
           {
@@ -53,7 +51,7 @@ ${existingSummary ? `Previous summary:\n${existingSummary}\n\n` : ""}New message
 
 export async function compactSessionContext(
   sessionId: string,
-  aiConfig: AiConfig,
+  settings: AppSettings | undefined,
 ): Promise<void> {
   const session = await db.chatSessions.get(sessionId);
   if (!session) return;
@@ -87,7 +85,7 @@ export async function compactSessionContext(
   if (conversationalToCompact.length === 0) return;
 
   const summary = await summarizeMessages(
-    aiConfig,
+    settings,
     session.contextSummary,
     conversationalToCompact,
   );

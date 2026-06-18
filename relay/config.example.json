@@ -1,0 +1,22 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "smtp": {
+    "host": "smtp.example.com",
+    "port": 587,
+    "secure": false,
+    "user": "your@email.com",
+    "pass": "app-password",
+    "from": "Hesia <your@email.com>"
+  },
+  "mcpServers": [
+    {
+      "id": "example-filesystem",
+      "name": "Filesystem (stdio)",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "enabled": false
+    }
+  ]
+}

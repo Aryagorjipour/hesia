@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { format, parseISO } from "date-fns";
 import { ArrowRight, Trash2, Undo2 } from "lucide-react";
 import { db } from "@/lib/db/schema";
+import { suggestTags } from "@/lib/ai/suggest-tags";
+import { suggestCategory } from "@/lib/ai/suggest-category";
+import { estimateTime } from "@/lib/ai/estimate-time";
+import { suggestPlanned } from "@/lib/ai/suggest-planned";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
+import { COLUMN_LABELS } from "@/types/task";
+import {
+  AiSuggestTrigger,
+  AiSuggestionFeedback,
+} from "./ai-suggestions-panel";
+import { useAiSuggestion } from "./use-ai-suggestion";
 import {
   updateTask,
   deleteTask,
@@ -14,11 +25,7 @@ import {
   ensureCategoryExists,
 } from "@/lib/db/mutations/tasks";
 import type { Task, TaskStatus } from "@/types/task";
-import {
-  COLUMN_LABELS,
-  DEFAULT_COLUMNS,
-  CARRY_FORWARD_STATUSES,
-} from "@/types/task";
+import { DEFAULT_COLUMNS, CARRY_FORWARD_STATUSES } from "@/types/task";
 import type { BoardPermissions } from "@/lib/utils/board-dates";
 import {
   formatBoardDayLabel,
@@ -74,6 +81,12 @@ function TaskDetailForm({
 }) {
   const tags = useLiveQuery(() => db.tags.toArray()) ?? [];
   const categories = useLiveQuery(() => db.categories.toArray()) ?? [];
+  const settings = useLiveQuery(() => db.settings.get("default"));
+
+  const tagAiConfigured = isAiConfiguredForFeature(settings, "tagging");
+  const categoryAiConfigured = isAiConfiguredForFeature(settings, "categorization");
+  const timeAiConfigured = isAiConfiguredForFeature(settings, "time-estimate");
+  const plannedAiConfigured = isAiConfiguredForFeature(settings, "planned-suggest");
 
   const canEdit = permissions.canEditTask(task);
   const canCarry =
@@ -109,6 +122,83 @@ function TaskDetailForm({
       prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
     );
   }
+
+  const taskContext = useCallback(
+    () => ({
+      title: title.trim() || task.title,
+      description: description.trim() || undefined,
+      notes: notes.trim() || undefined,
+      status: COLUMN_LABELS[status],
+      isPlanned,
+      tags: selectedTags,
+      category: category || undefined,
+      durationMinutes: duration ? parseInt(duration, 10) : undefined,
+    }),
+    [
+      title,
+      task.title,
+      description,
+      notes,
+      status,
+      isPlanned,
+      selectedTags,
+      category,
+      duration,
+    ],
+  );
+
+  const tagSuggestion = useAiSuggestion({
+    aiConfigured: tagAiConfigured && canEdit,
+    fetchSuggestion: () =>
+      suggestTags(settings, {
+        ...taskContext(),
+        currentTags: selectedTags,
+        availableTags: tags.map((t) => t.name),
+      }),
+    onAccept: (result) => {
+      setSelectedTags((prev) => {
+        const merged = new Set([...prev, ...result.tags]);
+        return [...merged];
+      });
+    },
+  });
+
+  const categorySuggestion = useAiSuggestion({
+    aiConfigured: categoryAiConfigured && canEdit,
+    fetchSuggestion: () =>
+      suggestCategory(settings, {
+        ...taskContext(),
+        currentCategory: category || undefined,
+        availableCategories: categories.map((c) => c.name),
+      }),
+    onAccept: (result) => {
+      if (result.category) setCategory(result.category);
+    },
+  });
+
+  const timeSuggestion = useAiSuggestion({
+    aiConfigured: timeAiConfigured && canEdit,
+    fetchSuggestion: () =>
+      estimateTime(settings, {
+        ...taskContext(),
+        currentDurationMinutes: duration ? parseInt(duration, 10) : undefined,
+      }),
+    onAccept: (result) => {
+      setDuration(String(result.durationMinutes));
+    },
+  });
+
+  const plannedSuggestion = useAiSuggestion({
+    aiConfigured: plannedAiConfigured && canEdit,
+    fetchSuggestion: () =>
+      suggestPlanned(settings, {
+        ...taskContext(),
+        currentIsPlanned: isPlanned,
+      }),
+    onAccept: (result) => {
+      setIsPlanned(result.isPlanned);
+    },
+  });
 
   async function handleSave() {
     if (!canEdit || !title.trim()) return;
@@ -272,7 +362,16 @@ function TaskDetailForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Duration (min)</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Duration (min)</Label>
+            <AiSuggestTrigger
+              label="Suggest time"
+              aiConfigured={timeAiConfigured && canEdit}
+              loading={timeSuggestion.state === "loading"}
+              disabled={!title.trim() || !timeSuggestion.isOnline}
+              onSuggest={() => void timeSuggestion.suggest()}
+            />
+          </div>
           <Input
             type="number"
             min={1}
@@ -280,20 +379,90 @@ function TaskDetailForm({
             onChange={(e) => setDuration(e.target.value)}
             disabled={!canEdit}
           />
+          <AiSuggestionFeedback
+            featureName="Time estimates"
+            state={timeSuggestion.state}
+            error={timeSuggestion.error}
+            isOnline={timeSuggestion.isOnline}
+            onAccept={timeSuggestion.accept}
+            onReject={timeSuggestion.reject}
+            preview={
+              timeSuggestion.suggestion ? (
+                <div className="space-y-1">
+                  <p className="font-medium text-foreground">
+                    {timeSuggestion.suggestion.durationMinutes} minutes
+                  </p>
+                  {timeSuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {timeSuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
         </div>
       </div>
 
-      <div className="flex items-center justify-between rounded-2xl bg-muted/30 px-4 py-3">
-        <Label>Planned work</Label>
-        <Switch
-          checked={isPlanned}
-          onCheckedChange={setIsPlanned}
-          disabled={!canEdit}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between rounded-2xl bg-muted/30 px-4 py-3">
+          <Label>Planned work</Label>
+          <div className="flex items-center gap-2">
+            <AiSuggestTrigger
+              label="Suggest"
+              aiConfigured={plannedAiConfigured && canEdit}
+              loading={plannedSuggestion.state === "loading"}
+              disabled={!title.trim() || !plannedSuggestion.isOnline}
+              onSuggest={() => void plannedSuggestion.suggest()}
+            />
+            <Switch
+              checked={isPlanned}
+              onCheckedChange={setIsPlanned}
+              disabled={!canEdit}
+            />
+          </div>
+        </div>
+        <AiSuggestionFeedback
+          featureName="Planned task suggestions"
+          state={plannedSuggestion.state}
+          error={plannedSuggestion.error}
+          isOnline={plannedSuggestion.isOnline}
+          onAccept={plannedSuggestion.accept}
+          onReject={plannedSuggestion.reject}
+          preview={
+            plannedSuggestion.suggestion ? (
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  {plannedSuggestion.suggestion.isPlanned
+                    ? "Planned work"
+                    : "Flow win (unplanned)"}
+                </p>
+                {plannedSuggestion.suggestion.reasoning && (
+                  <p className="text-xs text-muted-foreground">
+                    {plannedSuggestion.suggestion.reasoning}
+                  </p>
+                )}
+              </div>
+            ) : null
+          }
         />
       </div>
 
       <div className="space-y-2">
-        <Label>Category</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label>Category</Label>
+          <AiSuggestTrigger
+            label="Suggest category"
+            aiConfigured={categoryAiConfigured && canEdit}
+            loading={categorySuggestion.state === "loading"}
+            disabled={
+              !title.trim() ||
+              categories.length === 0 ||
+              !categorySuggestion.isOnline
+            }
+            onSuggest={() => void categorySuggestion.suggest()}
+          />
+        </div>
         <Select
           value={category || "none"}
           onValueChange={(v) => setCategory(v === "none" ? "" : v)}
@@ -311,11 +480,42 @@ function TaskDetailForm({
             ))}
           </SelectContent>
         </Select>
+        <AiSuggestionFeedback
+          featureName="Task categorization"
+          state={categorySuggestion.state}
+          error={categorySuggestion.error}
+          isOnline={categorySuggestion.isOnline}
+          onAccept={categorySuggestion.accept}
+          onReject={categorySuggestion.reject}
+          preview={
+            categorySuggestion.suggestion ? (
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  {categorySuggestion.suggestion.category ?? "None"}
+                </p>
+                {categorySuggestion.suggestion.reasoning && (
+                  <p className="text-xs text-muted-foreground">
+                    {categorySuggestion.suggestion.reasoning}
+                  </p>
+                )}
+              </div>
+            ) : null
+          }
+        />
       </div>
 
       {tags.length > 0 && (
         <div className="space-y-2">
-          <Label>Tags</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>Tags</Label>
+            <AiSuggestTrigger
+              label="Suggest tags"
+              aiConfigured={tagAiConfigured && canEdit}
+              loading={tagSuggestion.state === "loading"}
+              disabled={!title.trim() || !tagSuggestion.isOnline}
+              onSuggest={() => void tagSuggestion.suggest()}
+            />
+          </div>
           <div className="flex flex-wrap gap-2">
             {tags.map((tag) => (
               <TagChip
@@ -327,6 +527,42 @@ function TaskDetailForm({
               />
             ))}
           </div>
+          <AiSuggestionFeedback
+            featureName="Tag suggestions"
+            state={tagSuggestion.state}
+            error={tagSuggestion.error}
+            isOnline={tagSuggestion.isOnline}
+            onAccept={tagSuggestion.accept}
+            onReject={tagSuggestion.reject}
+            preview={
+              tagSuggestion.suggestion ? (
+                <div className="space-y-2">
+                  {tagSuggestion.suggestion.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {tagSuggestion.suggestion.tags.map((name) => {
+                        const tag = tags.find((t) => t.name === name);
+                        return (
+                          <TagChip
+                            key={name}
+                            name={name}
+                            colorHex={tag?.colorHex}
+                            selected
+                          />
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No tags suggested</p>
+                  )}
+                  {tagSuggestion.suggestion.reasoning && (
+                    <p className="text-xs text-muted-foreground">
+                      {tagSuggestion.suggestion.reasoning}
+                    </p>
+                  )}
+                </div>
+              ) : null
+            }
+          />
         </div>
       )}
 

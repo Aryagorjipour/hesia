@@ -23,6 +23,7 @@ import {
 import { formatWeekLabel } from "@/lib/utils/dates";
 import { useWeekStartsOn } from "@/lib/hooks/use-week-starts-on";
 import { useOnlineStatus } from "@/lib/hooks/use-online-status";
+import { SendReportDialog } from "./send-report-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -157,6 +158,7 @@ export function AiReflectionPanel({ weekStart, stats }: AiReflectionPanelProps) 
           </Button>
           {report && report.id !== "generating" && hasNarrative && (
             <>
+              <SendReportDialog report={report} />
               <Button
                 size="sm"
                 variant="ghost"

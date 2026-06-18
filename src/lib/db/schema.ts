@@ -7,6 +7,9 @@ import type { WeeklyReport } from "@/types/report";
 import type { ChatSession, ChatMessage } from "@/types/chat";
 import type { AppSettings, UserMemoryEntry } from "@/types/settings";
 import type { SyncTombstone } from "@/types/sync-tombstone";
+import { migrateSettingsAiV6 } from "@/lib/db/migrate-v6-ai";
+import { migrateSettingsLocaleV7 } from "@/lib/db/migrate-v7-locale";
+import { migrateSettingsMcpV8 } from "@/lib/db/migrate-v8-mcp";
 
 /**
  * Hesia IndexedDB schema — all app data lives here permanently.
@@ -182,6 +185,66 @@ export class HesiaDB extends Dexie {
           dataDirectoryHint: legacy.dataDirectoryHint,
           version: legacy.version,
         });
+      });
+
+    this.version(6)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table("settings").get("default");
+        if (!settings) return;
+        const migrated = migrateSettingsAiV6(settings as AppSettings);
+        await tx.table("settings").put(migrated);
+      });
+
+    this.version(7)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table("settings").get("default");
+        if (!settings) return;
+        const migrated = migrateSettingsLocaleV7(settings as AppSettings);
+        await tx.table("settings").put(migrated);
+      });
+
+    this.version(8)
+      .stores({
+        tasks:
+          "id, status, boardDate, isPlanned, category, createdAt, updatedAt, completedAt, sortOrder, *tags",
+        tags: "name, updatedAt",
+        categories: "name, updatedAt",
+        weeklyReports: "id, weekStart, generatedAt",
+        chatSessions: "id, updatedAt, weekStart",
+        chatMessages: "id, sessionId, createdAt, role",
+        userMemory: "id, updatedAt, type",
+        settings: "id",
+        syncTombstones: "id, entityType, entityKey, deletedAt",
+      })
+      .upgrade(async (tx) => {
+        const settings = await tx.table("settings").get("default");
+        if (!settings) return;
+        const migrated = migrateSettingsMcpV8(settings as AppSettings);
+        await tx.table("settings").put(migrated);
       });
   }
 }

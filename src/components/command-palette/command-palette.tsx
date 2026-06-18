@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { db } from "@/lib/db/schema";
-import { isAiConfigured } from "@/lib/ai/is-ai-configured";
+import { isAiConfiguredForFeature } from "@/lib/ai/is-ai-configured";
 import { useCommandPaletteStore } from "@/stores/command-palette-store";
 import { useWeekStartsOn } from "@/lib/hooks/use-week-starts-on";
 import { useModKeyLabel } from "@/lib/hooks/use-mod-key-label";
@@ -105,7 +105,7 @@ export function CommandPalette() {
   const weeklyReports = useLiveQuery(() => db.weeklyReports.toArray());
   const settings = useLiveQuery(() => db.settings.get("default"));
   const includeChat =
-    onChatPage && isAiConfigured(settings?.aiConfig);
+    onChatPage && isAiConfiguredForFeature(settings, "chat");
 
   const chatSessions = useLiveQuery(
     () => (includeChat ? db.chatSessions.toArray() : []),

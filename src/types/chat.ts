@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HesiaActionSchema } from "./ai-actions";
 
 export const ChatSessionSchema = z.object({
   id: z.string().uuid(),
@@ -24,6 +25,7 @@ export const ChatMessageSchema = z.object({
     .object({
       model: z.string().optional(),
       tokens: z.number().optional(),
+      actions: z.array(HesiaActionSchema).optional(),
     })
     .optional(),
 });
